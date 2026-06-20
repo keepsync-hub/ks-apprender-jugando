@@ -413,24 +413,6 @@ const SHOP=[
 ];
 
 /* ----------------------------------------------------------------------
-   DICCIONARIO DEL JEFE (REQ-003)
-   Palabras en inglés de 5+ letras (con su significado como pista). El jefe
-   pide completar letras faltantes; cuanto más larga la palabra, más difícil.
-   Para ampliar: añade {en,es} con la palabra inglesa (mínimo 5 letras).
-   ---------------------------------------------------------------------- */
-const BOSS_DICT=[
-  {en:'apple',  es:'manzana'}, {en:'house',  es:'casa'},    {en:'water', es:'agua'},
-  {en:'bread',  es:'pan'},     {en:'green',  es:'verde'},   {en:'happy', es:'feliz'},
-  {en:'light',  es:'luz'},     {en:'music',  es:'música'},  {en:'night', es:'noche'},
-  {en:'river',  es:'río'},     {en:'stone',  es:'piedra'},  {en:'cloud', es:'nube'},
-  {en:'friend', es:'amigo'},   {en:'flower', es:'flor'},    {en:'island',es:'isla'},
-  {en:'forest', es:'bosque'},  {en:'animal', es:'animal'},  {en:'orange',es:'naranja'},
-  {en:'school', es:'escuela'}, {en:'family', es:'familia'}, {en:'mother',es:'madre'},
-  {en:'morning',es:'mañana'},  {en:'rainbow',es:'arcoíris'},{en:'kitchen',es:'cocina'},
-  {en:'mountain',es:'montaña'},{en:'elephant',es:'elefante'},{en:'birthday',es:'cumpleaños'}
-];
-
-/* ----------------------------------------------------------------------
    LOGROS / MEDALLAS (data-driven, igual que islas y tienda)
    Cada medalla define una condición cond(state, stats) que, al volverse
    verdadera, la desbloquea. Para añadir un logro nuevo basta con sumar
@@ -946,21 +928,26 @@ function combatWin(){
 }
 
 /* ---------- Jefe: completar 5 palabras con letras faltantes (REQ-002) ----------
-   El jefe pide 5 palabras del diccionario (BOSS_DICT). La palabra n oculta n
-   letras (1→1 … 5→5). Fallar resta vida (amortiguada por la armadura); si caes
-   te recuperas y retomas. Completar la 5ª = victoria. */
+   El jefe pide EXACTAMENTE las palabras que el jugador APRENDIÓ durante el juego
+   (las que enseñan los aldeanos de la isla). La palabra n oculta n letras
+   (1→1 … 5→5, sin pasar de su longitud). Fallar resta vida (amortiguada por la
+   armadura); si caes te recuperas y retomas. Completar la 5ª = victoria. */
 let bossFight=null;
 const ALPHA='abcdefghijklmnopqrstuvwxyz';
 function shuffle(a){ for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; }
-/* elige 5 palabras de longitud creciente; escala con la isla (más largas) */
+/* 5 palabras tomadas de lo APRENDIDO en el juego, ordenadas por longitud
+   ascendente para que el reto (letras ocultas) escale. Prioriza las palabras
+   aprendidas de la isla actual; si faltan, completa con cualquier aprendida y,
+   si aun así hay menos de 5, repite la más larga. */
 function pickBossWords(){
-  let minLen=5+state.islandIndex;
-  let pool=BOSS_DICT.filter(w=>w.en.length>=minLen);
-  while(pool.length<5 && minLen>5){ minLen--; pool=BOSS_DICT.filter(w=>w.en.length>=minLen); }
-  if(pool.length<5) pool=BOSS_DICT.slice();
-  pool=shuffle(pool.slice()).sort((a,b)=>a.en.length-b.en.length);
+  let pool=island().vocab.filter(w=>state.learned[w.id]);
+  if(pool.length<5){
+    const extra=ALL_VOCAB.filter(w=>state.learned[w.id] && !pool.includes(w));
+    pool=pool.concat(extra);
+  }
+  pool=pool.slice().sort((a,b)=>a.en.length-b.en.length);
   const picks=[];
-  for(let k=0;k<5;k++) picks.push(pool[Math.floor(k*(pool.length-1)/4)]);
+  for(let i=0;i<5;i++) picks.push(pool[i<pool.length?i:pool.length-1]);
   return picks;
 }
 /* pool de letras: las que faltan + 4 señuelos, barajado y reutilizable */
@@ -993,7 +980,7 @@ function bossWord(){
   const bf=bossFight; if(!bf) return;
   if(bf.idx>=5){ winBoss(bf.o); return; }
   const word=bf.words[bf.idx].en.toLowerCase();
-  const hide=bf.idx+1;
+  const hide=Math.min(bf.idx+1, word.length);   // no ocultar más letras que la palabra
   const idxs=shuffle([...Array(word.length).keys()]).slice(0,hide).sort((a,b)=>a-b);
   bf.word=word; bf.es=bf.words[bf.idx].es; bf.positions=idxs;
   bf.slots=new Array(hide).fill(null);

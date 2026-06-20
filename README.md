@@ -39,10 +39,12 @@ para mantener el contenido seguro y enfocado.
    isla aparecen **más enemigos pero con menos vida** (uno por respuesta
    correcta). Cada acierto derrota a un enemigo; fallar te hace daño.
 6. **Vence al jefe (👹/🐲) completando palabras.** Necesitas una **espada** y
-   haber aprendido al menos 3 palabras. El jefe te pide **5 palabras en inglés
-   con letras faltantes**: completas los huecos tocando los **botones de letras**
-   (o escribiéndolas en el teclado). La dificultad sube palabra a palabra:
-   la 1ª oculta **1 letra**, la 2ª **2**, … hasta la 5ª con **5 letras**.
+   haber aprendido al menos 3 palabras. El jefe te pide **5 palabras que TÚ
+   aprendiste durante el juego** (las que enseñan los aldeanos de la isla), pero
+   ahora **con letras faltantes**: completas los huecos tocando los **botones de
+   letras** (o escribiéndolas en el teclado). La dificultad sube palabra a
+   palabra: la 1ª oculta **1 letra**, la 2ª **2**, … hasta la 5ª con **5 letras**
+   (sin pasar de la longitud de la palabra).
    Acertar las 5 = victoria; fallar resta vida que tu armadura amortigua (si
    caes, te recuperas y retomas sin perder progreso).
 7. **Viaja a la siguiente isla (🚢).** Al vencer al jefe se **desbloquea la
@@ -214,21 +216,20 @@ Helpers disponibles para las condiciones: `learnedCount()`, `masteredCount()`,
 y el objeto `stats` (`bestStreak`, `correctStreak`, `totalCorrect`,
 `zonesCleared`).
 
-### ➕ Ampliar el diccionario del jefe
+### 🐲 Las palabras del jefe son las que aprendes
 
-La pelea del jefe se alimenta del array **`BOSS_DICT`** en `index.html`. Cada
-entrada es `{en, es}` con una palabra **en inglés de 5 letras o más** y su
-significado (que se muestra como pista). Para añadir vocabulario, suma entradas:
+La pelea del jefe **no usa un diccionario aparte**: pide exactamente las
+**palabras que el jugador ha aprendido** con los aldeanos (el `vocab` de la
+isla, ver `pickBossWords()` en `index.html`). Así, lo que estudias durante el
+juego es justo lo que el jefe te pide completar. El motor:
 
-```js
-{ en:'castle', es:'castillo' }, { en:'diamond', es:'diamante' }
-```
+- toma las palabras **aprendidas de la isla actual** (si faltan para llegar a 5,
+  completa con cualquier otra aprendida y, si aún faltan, repite la más larga),
+- las ordena por longitud para que el reto **escale** (más letras ocultas), y
+- **oculta `n` letras en la palabra `n`** (1→5) sin pasar de su longitud.
 
-Reglas: la palabra **debe tener ≥5 letras** (para que la 5ª palabra del jefe
-pueda ocultar 5). El motor elige 5 palabras de longitud creciente y **escala la
-dificultad por isla** (`minLen = 5 + índice de isla`): en islas posteriores se
-seleccionan palabras más largas. Si quieres más reto global, añade palabras de
-6–9+ letras.
+Por tanto, para sumar vocabulario al jefe basta con **añadir palabras al `vocab`
+de las islas** (mismo flujo que ya documenta "Añadir una nueva isla").
 
 ---
 
