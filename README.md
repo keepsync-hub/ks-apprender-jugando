@@ -69,6 +69,14 @@ islas. Cada vez que desbloqueas una aparece una celebración, y puedes ver todas
 palabras → 🏅 Logros**. Son la recompensa que da motivos concretos para seguir
 aprendiendo y volver a jugar.
 
+### 👤 Perfil del jugador
+
+Desde el botón **👤 Perfil** ves una **figura de cuerpo completo** que va
+**vistiendo el equipo que consigues** (casco, pechera, pantalones, botas, escudo
+y espada): las piezas obtenidas aparecen resaltadas y las que faltan, atenuadas.
+El perfil también resume tus gemas, palabras, logros y equipo, y permite
+**editar tu nombre** con el botón ✏️.
+
 ---
 
 ## 🧩 De dónde sale
