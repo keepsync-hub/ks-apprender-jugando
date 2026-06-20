@@ -46,6 +46,23 @@ para mantener el contenido seguro y enfocado.
 El progreso se guarda automáticamente en el navegador (`localStorage`). Puedes
 reiniciarlo desde **📖 Mis palabras → ↺ Reiniciar**.
 
+### 🧭 Siempre sabes qué hacer
+
+Bajo el HUD hay una **franja de objetivo** que te guía paso a paso (*aprende N
+palabras → consigue una espada → vence al jefe → viaja*) y muestra tu progreso
+de palabras de la isla (`📖 3/8`). El botón **❓ Ayuda** reabre las
+instrucciones y la leyenda de personajes cuando lo necesites. En los retos de
+opción múltiple puedes responder con las teclas **1–4** y avanzar con **Enter**.
+
+### 🏅 Logros (medallas)
+
+Tus hitos se reconocen con **medallas**: aprender tu primera palabra, encadenar
+aciertos, dominar palabras, equiparte, despejar zonas, vencer jefes y explorar
+islas. Cada vez que desbloqueas una aparece una celebración, y puedes ver todas
+(obtenidas y por conseguir) desde el contador **🏅** del HUD o en **📖 Mis
+palabras → 🏅 Logros**. Son la recompensa que da motivos concretos para seguir
+aprendiendo y volver a jugar.
+
 ---
 
 ## 🧩 De dónde sale
@@ -164,6 +181,24 @@ python3 -m http.server 8000
 - **Dificultad inversa:** más enemigos con menos vida a medida que avanzas.
 - **Contenido acotado y extensible:** vocabulario seguro y enfocado, organizado
   en módulos (islas) fáciles de ampliar.
+- **Recompensa y guía constantes:** una franja de objetivo dice siempre qué
+  hacer, y los **logros** reconocen cada hito para sostener la motivación.
+
+### ➕ Añadir un logro nuevo
+
+Los logros también son **data-driven**: abre `index.html`, busca el array
+`MEDALS` y añade un objeto con `id`, `ico`, `name`, `desc` y una condición
+`cond(state, stats)` que devuelve `true` cuando se desbloquea. El motor lo
+comprueba solo tras cada respuesta e hito.
+
+```js
+{ id:'words20', ico:'🌟', name:'Sabio', desc:'Aprende 20 palabras.',
+  cond:(s)=>learnedCount()>=20 }
+```
+
+Helpers disponibles para las condiciones: `learnedCount()`, `masteredCount()`,
+y el objeto `stats` (`bestStreak`, `correctStreak`, `totalCorrect`,
+`zonesCleared`).
 
 ---
 
