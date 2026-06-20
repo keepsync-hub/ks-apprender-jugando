@@ -230,6 +230,30 @@
   .toast.show{opacity:1; bottom:110px}
   .toast.warn{background:var(--gold); color:#3a2a05}
 
+  /* perfil del jugador */
+  .prof-top{display:flex; gap:14px; align-items:center; margin-bottom:8px}
+  .prof-meta{flex:1; min-width:0}
+  .prof-name{font-family:'Press Start 2P',monospace; font-size:12px; color:var(--gold);
+    margin-bottom:8px; word-break:break-word; line-height:1.5}
+  .prof-stats{font-size:13px; font-weight:800; margin-bottom:4px}
+  .figure{position:relative; width:118px; height:168px; flex:none;
+    background:radial-gradient(circle at 50% 35%, #34271a, #1a130b);
+    border:3px solid var(--wood2); border-radius:12px; box-shadow:inset 0 0 0 2px #16110b}
+  .fig-body{position:absolute; left:50%; top:52%; transform:translate(-50%,-50%);
+    font-size:92px; filter:drop-shadow(0 3px 0 rgba(0,0,0,.35))}
+  .fig-item{position:absolute; font-size:26px; line-height:1}
+  .fig-item.off{opacity:.16; filter:grayscale(1)}
+  .fig-item.on{filter:drop-shadow(0 1px 1px rgba(0,0,0,.55))}
+  .fi-helmet{top:4px;  left:50%; transform:translateX(-50%)}
+  .fi-chest {top:60px; left:50%; transform:translateX(-50%)}
+  .fi-pants {top:100px;left:50%; transform:translateX(-50%)}
+  .fi-boots {bottom:4px;left:50%; transform:translateX(-50%)}
+  .fi-shield{top:64px; left:4px}
+  .fi-sword {top:64px; right:4px}
+  .name-input{width:100%; font-family:'Nunito',sans-serif; font-weight:800; font-size:16px;
+    padding:10px 12px; border:2px solid #16110b; border-radius:8px;
+    background:var(--cream); color:#2a1c0e; margin:8px 0}
+
   @media (prefers-reduced-motion: reduce){
     *{animation:none!important; transition:none!important}
   }
@@ -268,6 +292,7 @@
     <div class="ctrl-right">
       <button class="btn gold" id="actionBtn" disabled>Acércate a alguien</button>
       <button class="btn ghost" id="bankBtn">📖 Mis palabras</button>
+      <button class="btn ghost" id="profileBtn">👤 Perfil</button>
       <button class="btn ghost" id="helpBtn">❓ Ayuda</button>
       <div class="hint-key">Mueve: flechas / WASD · Interactúa: E · Menú: M</div>
     </div>
@@ -439,6 +464,7 @@ const MEDALS=[
    ---------------------------------------------------------------------- */
 const SAVE_KEY='aprender-jugando-save-v1';
 const defaultState = ()=>({
+  name:'Aventurero/a',
   hp:100, maxHp:100, gems:0,
   learned:{},                          // id -> {mastery:1..3, rusty:bool}  (global)
   gear:{sword:false, chest:false, helmet:false, pants:false, shield:false, boots:false},
@@ -1094,6 +1120,64 @@ function travelTo(idx){
 document.getElementById('bankBtn').addEventListener('click',openBank);
 document.getElementById('medalStat').addEventListener('click',openMedals);
 document.getElementById('helpBtn').addEventListener('click',showHelp);
+document.getElementById('profileBtn').addEventListener('click',openProfile);
+
+/* ---------- Perfil del jugador ---------- */
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function openProfile(){
+  const g=state.gear;
+  const it=(key,ico,cls)=>`<span class="fig-item ${cls} ${g[key]?'on':'off'}">${ico}</span>`;
+  const figure=`<div class="figure">
+      <span class="fig-body">🧍</span>
+      ${it('helmet','🪖','fi-helmet')}
+      ${it('chest','🦺','fi-chest')}
+      ${it('pants','👖','fi-pants')}
+      ${it('boots','🥾','fi-boots')}
+      ${it('shield','🛡️','fi-shield')}
+      ${it('sword','🗡️','fi-sword')}
+    </div>`;
+  const owned=SHOP.filter(s=>state.gear[s.key]).length;
+  const items=SHOP.map(s=>`<div class="shop-item">
+      <span class="si-ico">${s.ico}</span>
+      <div><div class="si-name">${s.name}</div><div class="si-desc">${s.desc}</div></div>
+      <div class="si-buy">${state.gear[s.key]
+        ?'<span class="owned">✔ Equipado</span>'
+        :'<span class="tag lock">Por conseguir</span>'}</div>
+    </div>`).join('');
+  const got=MEDALS.filter(m=>state.medals[m.id]).length;
+  openPanel(`<h2>👤 Perfil</h2>
+    <div class="prof-top">
+      ${figure}
+      <div class="prof-meta">
+        <div class="prof-name">${escapeHtml(state.name)}</div>
+        <div class="prof-stats">💎 ${state.gems} &nbsp; 📖 ${learnedCount()} palabras</div>
+        <div class="prof-stats">🏅 ${got}/${MEDALS.length} logros</div>
+        <div class="prof-stats">🛡️ Equipo: ${owned}/${SHOP.length}</div>
+        <button class="btn ghost" id="editNameBtn">✏️ Editar nombre</button>
+      </div>
+    </div>
+    <div class="wb-sub">Tu equipo (lo que vistes en la figura)</div>
+    ${items}
+    <div class="panel-actions"><button class="btn ghost" onclick="closePanel()">Cerrar</button></div>`);
+  const en=panel.querySelector('#editNameBtn'); if(en) en.onclick=editName;
+}
+function editName(){
+  openPanel(`<h2>✏️ Editar nombre</h2>
+    <div class="speaker"><div class="face">👤</div>
+    <div class="bubble">¿Cómo quieres que te llamen, aventurero/a?</div></div>
+    <input id="nameInput" class="name-input" maxlength="16" value="${escapeHtml(state.name)}" />
+    <div class="feedback" id="fb"></div>
+    <div class="panel-actions">
+      <button class="btn ghost" onclick="openProfile()">Cancelar</button>
+      <button class="btn gold" id="saveName">Guardar</button>
+    </div>`);
+  const inp=panel.querySelector('#nameInput'); inp.focus(); inp.select();
+  panel.querySelector('#saveName').onclick=()=>{
+    const v=inp.value.trim();
+    if(!v){ const f=document.getElementById('fb'); f.className='feedback bad'; f.textContent='Escribe un nombre.'; return; }
+    state.name=v.slice(0,16); saveState(); toast('✅ Nombre actualizado'); openProfile();
+  };
+}
 function openBank(){
   const ids=Object.keys(state.learned);
   const stars=m=>'⭐'.repeat(m)+'·'.repeat(3-m);
@@ -1126,6 +1210,8 @@ function confirmReset(){
 
 /* ---------- Teclado / pad ---------- */
 window.addEventListener('keydown',e=>{
+  // Si se está escribiendo en un campo de texto, no capturar atajos.
+  if(e.target && /^(input|textarea|select)$/i.test(e.target.tagName)) return;
   const k=e.key.toLowerCase();
   // Atajos dentro de los retos: 1-4 elige opción, letras rellenan al jefe, Enter avanza.
   if(overlay.classList.contains('show')){
