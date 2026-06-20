@@ -1,0 +1,899 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Aprender Jugando</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Nunito:wght@600;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --sea:#2e6ca4; --sea2:#1f5384;
+    --grass:#6aab4a; --grass2:#5b9a3d;
+    --sand:#e6cf8f; --path:#b0814e; --path2:#9a6f40;
+    --snow:#dfe9f2; --snow2:#c3d4e4;
+    --rock:#9aa0a6;
+    --wood:#3a2a1c; --wood2:#4d3826;
+    --cream:#f5ecd6; --gold:#e6a52c; --leaf:#7ac24a;
+    --danger:#c0392b; --hp:#d44; --hpbg:#5a2320;
+    --tile:42px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:#16110b;
+    color:var(--cream);
+    font-family:'Nunito',system-ui,sans-serif;
+    display:flex; align-items:center; justify-content:center;
+    min-height:100dvh; padding:12px;
+    image-rendering:pixelated;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .pixel{font-family:'Press Start 2P',monospace;line-height:1.6;letter-spacing:.5px}
+
+  #game{
+    width:100%; max-width:560px;
+    background:linear-gradient(180deg,#241a10,#1a130b);
+    border:4px solid var(--wood2);
+    border-radius:10px;
+    box-shadow:0 0 0 4px #16110b,0 18px 40px rgba(0,0,0,.6);
+    overflow:hidden;
+    position:relative;
+  }
+
+  /* ---------- HUD ---------- */
+  #hud{
+    display:flex; align-items:center; gap:10px;
+    padding:10px 12px; background:var(--wood);
+    border-bottom:4px solid #16110b;
+    flex-wrap:wrap;
+  }
+  #hud .title{font-size:11px; color:var(--gold); margin-right:auto}
+  #hud .island{font-size:10px; color:var(--leaf); width:100%; order:5; opacity:.9}
+  .stat{display:flex; align-items:center; gap:6px; font-size:11px; font-weight:800}
+  .stat .ico{font-size:15px}
+  .hpbar{width:84px; height:12px; background:var(--hpbg); border:2px solid #16110b; border-radius:3px; overflow:hidden}
+  .hpbar > i{display:block; height:100%; background:linear-gradient(90deg,#e85d52,#d44); transition:width .3s}
+
+  /* ---------- World ---------- */
+  #worldWrap{position:relative; background:var(--sea); padding:0; overflow:hidden}
+  #world{position:relative; margin:0 auto; image-rendering:pixelated}
+  .tile{position:absolute; width:var(--tile); height:var(--tile)}
+  .t-W{background:
+      radial-gradient(circle at 30% 30%, rgba(255,255,255,.12) 2px, transparent 3px),
+      linear-gradient(180deg,var(--sea),var(--sea2))}
+  .t-G{background:var(--grass)}
+  .t-G::after{content:""; position:absolute; inset:0;
+    background:radial-gradient(circle at 70% 60%, var(--grass2) 2px, transparent 3px),
+              radial-gradient(circle at 25% 40%, var(--grass2) 2px, transparent 3px)}
+  .t-S{background:var(--sand)}
+  .t-P{background:var(--path)}
+  .t-P::after{content:""; position:absolute; inset:0; box-shadow:inset 0 0 0 1px rgba(0,0,0,.06)}
+  .t-N{background:var(--snow)}
+  .t-N::after{content:""; position:absolute; inset:0;
+    background:radial-gradient(circle at 60% 50%, var(--snow2) 2px, transparent 3px)}
+
+  .obj{position:absolute; width:var(--tile); height:var(--tile);
+    display:flex; align-items:center; justify-content:center; font-size:26px;
+    filter:drop-shadow(0 2px 0 rgba(0,0,0,.25)); z-index:3}
+  .obj.npc{cursor:pointer}
+  .obj.cleared{opacity:.45; filter:grayscale(1)}
+  .obj .ring{
+    position:absolute; inset:2px; border:2px dashed var(--gold); border-radius:8px;
+    animation:pulse 1.2s infinite}
+  @keyframes pulse{0%,100%{opacity:.35}50%{opacity:1}}
+
+  #player{position:absolute; width:var(--tile); height:var(--tile);
+    display:flex; align-items:center; justify-content:center; font-size:26px; z-index:5;
+    transition:left .12s linear, top .12s linear;
+    filter:drop-shadow(0 3px 0 rgba(0,0,0,.3))}
+
+  /* ---------- Controls ---------- */
+  #controls{display:flex; align-items:center; justify-content:space-between;
+    padding:10px 14px; background:var(--wood); border-top:4px solid #16110b; gap:10px}
+  .dpad{display:grid; grid-template-columns:repeat(3,38px); grid-template-rows:repeat(3,38px); gap:4px}
+  .dpad button{grid-column:2; background:var(--wood2); color:var(--cream);
+    border:2px solid #16110b; border-radius:6px; font-size:16px; cursor:pointer}
+  .dpad .left{grid-column:1; grid-row:2}
+  .dpad .up{grid-row:1}
+  .dpad .down{grid-row:3}
+  .dpad .right{grid-column:3; grid-row:2}
+  .dpad button:active{background:var(--gold); color:#16110b}
+  .ctrl-right{display:flex; flex-direction:column; gap:8px}
+  .btn{font-family:'Nunito',sans-serif; font-weight:800; cursor:pointer;
+    border:2px solid #16110b; border-radius:7px; padding:9px 12px; font-size:13px;
+    background:var(--leaf); color:#143707}
+  .btn.gold{background:var(--gold); color:#3a2a05}
+  .btn.ghost{background:var(--wood2); color:var(--cream)}
+  .btn.danger{background:var(--danger); color:#fff}
+  .btn:active{transform:translateY(1px)}
+  .btn:disabled{opacity:.45; cursor:not-allowed}
+  .hint-key{font-size:9px; opacity:.7; text-align:center}
+
+  /* ---------- Modal ---------- */
+  #overlay{position:absolute; inset:0; background:rgba(8,5,2,.78);
+    display:none; align-items:center; justify-content:center; padding:16px; z-index:20}
+  #overlay.show{display:flex}
+  .panel{width:100%; max-width:420px; background:var(--wood);
+    border:4px solid var(--gold); border-radius:12px; padding:18px;
+    box-shadow:0 12px 30px rgba(0,0,0,.5); animation:pop .18s ease;
+    max-height:90%; overflow:auto}
+  @keyframes pop{from{transform:scale(.92);opacity:0}to{transform:scale(1);opacity:1}}
+  .panel h2{font-size:13px; color:var(--gold); margin-bottom:10px; display:flex; align-items:center; gap:8px}
+  .speaker{display:flex; gap:10px; align-items:flex-start; margin-bottom:12px}
+  .speaker .face{font-size:34px}
+  .bubble{background:var(--wood2); border:2px solid #16110b; border-radius:8px;
+    padding:10px 12px; font-size:15px; line-height:1.5; flex:1}
+  .bubble b{color:var(--gold)}
+  .wordbig{font-family:'Press Start 2P',monospace; font-size:18px; color:var(--leaf);
+    text-align:center; margin:6px 0 14px}
+  .choices{display:grid; gap:8px}
+  .choice{font-family:'Nunito',sans-serif; font-weight:800; font-size:15px; text-align:left;
+    background:var(--cream); color:#2a1c0e; border:2px solid #16110b; border-radius:8px;
+    padding:11px 13px; cursor:pointer}
+  .choice:hover{background:#fff}
+  .choice.correct{background:var(--leaf); color:#143707}
+  .choice.wrong{background:var(--danger); color:#fff}
+  .choice:disabled{cursor:default}
+  .feedback{margin-top:12px; font-size:14px; font-weight:800; min-height:20px}
+  .feedback.good{color:var(--leaf)}
+  .feedback.bad{color:#ff9a8f}
+  .panel-actions{display:flex; gap:8px; margin-top:14px; justify-content:flex-end; flex-wrap:wrap}
+
+  /* shop */
+  .shop-item{display:flex; align-items:center; gap:10px; background:var(--wood2);
+    border:2px solid #16110b; border-radius:8px; padding:10px; margin-bottom:8px}
+  .shop-item .si-ico{font-size:26px}
+  .shop-item .si-name{font-weight:800; font-size:14px}
+  .shop-item .si-desc{font-size:12px; opacity:.8}
+  .shop-item .si-buy{margin-left:auto; text-align:right}
+  .price{font-size:12px; font-weight:800; color:var(--gold); margin-bottom:4px}
+  .owned{font-size:11px; color:var(--leaf); font-weight:800}
+
+  /* word bank */
+  .wb-grid{display:grid; grid-template-columns:1fr 1fr; gap:8px; max-height:46vh; overflow:auto; margin-top:4px}
+  .wb-card{background:var(--cream); color:#2a1c0e; border:2px solid #16110b;
+    border-radius:8px; padding:8px 10px}
+  .wb-en{font-family:'Press Start 2P',monospace; font-size:11px; color:#6b3f12}
+  .wb-es{font-size:14px; font-weight:800; margin-top:3px}
+  .wb-mast{margin-top:5px; font-size:13px}
+  .wb-card.rusty{background:#e8d9b8; outline:2px dashed var(--danger)}
+  .wb-rusty-tag{font-size:10px; color:var(--danger); font-weight:800}
+  .empty{opacity:.7; font-size:14px; text-align:center; padding:18px}
+
+  /* combat (enemies that multiply) */
+  .enemy-row{display:flex; flex-wrap:wrap; gap:6px; justify-content:center; margin:4px 0 10px}
+  .enemy{width:34px;height:34px;border:2px solid #16110b;border-radius:6px;
+    background:linear-gradient(#9b5fb0,#5a2a6e);
+    display:flex;align-items:center;justify-content:center;font-size:18px}
+  .enemy.dead{background:#241a10; opacity:.4}
+
+  /* boss */
+  .bosswrap{text-align:center}
+  .boss-face{font-size:46px; margin:4px 0; filter:drop-shadow(0 0 8px rgba(192,57,43,.7))}
+  .boss-shake{animation:shake .3s}
+  @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+  .barlabel{font-size:10px; text-align:left; margin:8px 0 3px}
+  .bossbar{height:14px; background:#3a1410; border:2px solid #16110b; border-radius:4px; overflow:hidden}
+  .bossbar > i{display:block; height:100%; background:linear-gradient(90deg,#e74c3c,#c0392b); transition:width .35s}
+  .selfbar > i{background:linear-gradient(90deg,#e85d52,#d44)}
+
+  /* island travel */
+  .isl-item{display:flex; align-items:center; gap:10px; background:var(--wood2);
+    border:2px solid #16110b; border-radius:8px; padding:10px; margin-bottom:8px}
+  .isl-item .ii-ico{font-size:26px}
+  .isl-item .ii-name{font-weight:800; font-size:14px}
+  .isl-item .ii-desc{font-size:12px; opacity:.8}
+  .isl-item .ii-go{margin-left:auto}
+  .locked{opacity:.6}
+  .tag{font-size:10px; font-weight:800; color:var(--leaf)}
+  .tag.lock{color:var(--gold)}
+
+  .toast{position:absolute; left:50%; bottom:96px; transform:translateX(-50%);
+    background:var(--leaf); color:#143707; font-weight:800; font-size:13px;
+    padding:8px 14px; border-radius:8px; border:2px solid #16110b; z-index:30;
+    opacity:0; transition:opacity .25s, bottom .25s; pointer-events:none; text-align:center}
+  .toast.show{opacity:1; bottom:110px}
+  .toast.warn{background:var(--gold); color:#3a2a05}
+
+  @media (prefers-reduced-motion: reduce){
+    *{animation:none!important; transition:none!important}
+  }
+  @media (max-width:430px){
+    :root{--tile:34px}
+    .btn{font-size:12px; padding:8px 10px}
+  }
+</style>
+</head>
+<body>
+<div id="game">
+  <div id="hud">
+    <span class="title pixel">APRENDER JUGANDO</span>
+    <span class="stat" title="Vida"><span class="ico">❤️</span><span class="hpbar"><i id="hpFill" style="width:100%"></i></span></span>
+    <span class="stat" title="Gemas"><span class="ico">💎</span><span id="gemCount">0</span></span>
+    <span class="stat" title="Palabras aprendidas"><span class="ico">📖</span><span id="wordCount">0</span></span>
+    <span class="island" id="islandName">Isla Niebla</span>
+  </div>
+
+  <div id="worldWrap"><div id="world"></div></div>
+
+  <div id="controls">
+    <div class="dpad">
+      <button class="up" data-dir="up" aria-label="Arriba">▲</button>
+      <button class="left" data-dir="left" aria-label="Izquierda">◀</button>
+      <button class="down" data-dir="down" aria-label="Abajo">▼</button>
+      <button class="right" data-dir="right" aria-label="Derecha">▶</button>
+    </div>
+    <div class="ctrl-right">
+      <button class="btn gold" id="actionBtn" disabled>Acércate a alguien</button>
+      <button class="btn ghost" id="bankBtn">📖 Mis palabras</button>
+      <div class="hint-key">Mueve: flechas / WASD · Interactúa: E · Menú: M</div>
+    </div>
+  </div>
+
+  <div id="overlay"><div id="panel" class="panel"></div></div>
+  <div id="toast" class="toast"></div>
+</div>
+
+<script>
+/* ======================================================================
+   APRENDER JUGANDO
+   App educativa con mecánica estilo Minecraft/Catan: exploras una isla
+   con un personaje que mueves con las flechas, hablas con aldeanos que dan
+   PISTAS (no respuestas), y lo que aprendes es tu moneda y tu arma.
+
+   El juego es 100% data-driven: cada "isla" es un MÓDULO DE APRENDIZAJE
+   independiente dentro del array ISLANDS. Para sumar contenido nuevo basta
+   con añadir otra isla a ese array (ver README.md).
+   ====================================================================== */
+
+/* ----------------------------------------------------------------------
+   DATOS: ISLAS = módulos de aprendizaje
+   Cada isla define: tema, mapa, vocabulario, aldeanos, tienda y jefe.
+   ---------------------------------------------------------------------- */
+const ISLANDS = [
+  {
+    id:'niebla',
+    name:'Isla Niebla',
+    theme:'Inglés · saludos y básicos',
+    floor:'G',                 // tile por defecto bajo los objetos
+    vocab:[
+      {id:'hello',  en:'hello',  es:'hola',   hint:'La dices al encontrarte con alguien para saludar.'},
+      {id:'goodbye',en:'goodbye',es:'adiós',  hint:'La usas cuando te vas o te despides de alguien.'},
+      {id:'please', en:'please', es:'por favor',hint:'La palabra amable para pedir algo a otra persona.'},
+      {id:'thanks', en:'thanks', es:'gracias',hint:'La dices cuando alguien te ayuda o te da algo.'},
+      {id:'water',  en:'water',  es:'agua',   hint:'La bebes cuando tienes sed; llena el mar.'},
+      {id:'bread',  en:'bread',  es:'pan',    hint:'Comida hecha de harina que comes en el desayuno.'},
+      {id:'friend', en:'friend', es:'amigo',  hint:'Alguien en quien confías y con quien juegas.'},
+      {id:'house',  en:'house',  es:'casa',   hint:'El lugar donde vives y duermes.'}
+    ],
+    map:[
+      "WWWWWWWWWWWWW",
+      "WWSSSGGGSSWWW",
+      "WSSGGGGGGGSWW",
+      "WSGGGPGGGGGSW",
+      "WSGGGPGGGGGSW",
+      "WSGGPPPGGGGSW",
+      "WSGGPGGGGGGSW",
+      "WSGGGPGGGGGSW",
+      "WWSSGGGGGSSWW",
+      "WWWWSSSSWWWWW"
+    ],
+    spawn:{x:3,y:6},
+    objects:[
+      {id:'teacherA', kind:'teacher', face:'🧑‍🏫', x:3, y:3, name:'Maestra Mara',
+       words:['hello','goodbye','please','thanks']},
+      {id:'teacherB', kind:'teacher', face:'🧓', x:9, y:6, name:'Abuelo Tomi',
+       words:['water','bread','friend','house']},
+      {id:'reviewer', kind:'reviewer', face:'🧒', x:5, y:8, name:'Niña Lía'},
+      {id:'shop',     kind:'shop',     face:'🏪', x:2, y:5, name:'Tienda del Herrero'},
+      {id:'enemies',  kind:'enemies',  face:'👾', x:9, y:3, name:'Nido de slimes'},
+      {id:'boss',     kind:'boss',     face:'👹', x:6, y:1, name:'Guardián de la Niebla', face2:'🏳️',
+       greeting:'Para cruzar a la siguiente isla debes vencerme. ¡Solo lo lograrás si llevas una espada y has aprendido suficientes palabras!'}
+    ]
+  },
+  {
+    id:'bosque',
+    name:'Isla del Bosque',
+    theme:'Inglés · naturaleza',
+    floor:'G',
+    vocab:[
+      {id:'tree',   en:'tree',   es:'árbol',  hint:'Tiene tronco y hojas; crece en el bosque.'},
+      {id:'fire',   en:'fire',   es:'fuego',  hint:'Es caliente, da luz y quema la madera.'},
+      {id:'stone',  en:'stone',  es:'piedra', hint:'Material duro y gris del suelo y las montañas.'},
+      {id:'sun',    en:'sun',    es:'sol',    hint:'Brilla en el cielo de día y da calor.'},
+      {id:'rain',   en:'rain',   es:'lluvia', hint:'Agua que cae del cielo cuando hay nubes.'},
+      {id:'bird',   en:'bird',   es:'pájaro', hint:'Animal con alas y plumas que canta y vuela.'},
+      {id:'flower', en:'flower', es:'flor',   hint:'Parte colorida de la planta que huele bien.'},
+      {id:'river',  en:'river',  es:'río',    hint:'Corriente de agua que cruza el bosque.'}
+    ],
+    map:[
+      "WWWWWWWWWWWWW",
+      "WGGGGGGGGGGGW",
+      "WGGGGPPPGGGGW",
+      "WGGGGPGGGGGGW",
+      "WGGPPPGGGGGGW",
+      "WGGPGGGGGGGGW",
+      "WGGPPPGGGGGGW",
+      "WGGGGGPGGGGGW",
+      "WGGGGGGGGGGGW",
+      "WWWWWWWWWWWWW"
+    ],
+    spawn:{x:3,y:5},
+    objects:[
+      {id:'teacherC', kind:'teacher', face:'🧝', x:5, y:2, name:'Guardabosques Eli',
+       words:['tree','fire','stone','sun']},
+      {id:'teacherD', kind:'teacher', face:'🧑‍🌾', x:10, y:7, name:'Jardinera Bea',
+       words:['rain','bird','flower','river']},
+      {id:'reviewer', kind:'reviewer', face:'🦉', x:2, y:8, name:'Búho Memo'},
+      {id:'shop',     kind:'shop',     face:'⛺', x:2, y:2, name:'Campamento del Herrero'},
+      {id:'enemies',  kind:'enemies',  face:'🐗', x:9, y:3, name:'Manada de jabalíes'},
+      {id:'boss',     kind:'boss',     face:'🐲', x:6, y:1, name:'Dragón del Bosque', face2:'🏳️',
+       greeting:'¡Solo el conocimiento me hiere! Trae tu espada y muchas palabras si quieres pasar.'}
+    ]
+  }
+  /* >>> Para añadir un nuevo módulo, copia un objeto isla aquí. Ver README. <<< */
+];
+
+/* equipo de la tienda (común a todas las islas) */
+const SHOP=[
+  {key:'sword',  ico:'🗡️', name:'Espada', desc:'Necesaria para atacar al jefe', price:8},
+  {key:'helmet', ico:'🪖', name:'Casco', desc:'Reduce el daño que recibes', price:6},
+  {key:'chest',  ico:'🦺', name:'Pechera', desc:'Reduce mucho el daño', price:10}
+];
+
+/* ----------------------------------------------------------------------
+   ESTADO (con guardado en localStorage)
+   ---------------------------------------------------------------------- */
+const SAVE_KEY='aprender-jugando-save-v1';
+const defaultState = ()=>({
+  hp:100, maxHp:100, gems:0,
+  learned:{},                          // id -> {mastery:1..3, rusty:bool}  (global)
+  gear:{helmet:false, chest:false, sword:false},
+  islandIndex:0,
+  px:ISLANDS[0].spawn.x, py:ISLANDS[0].spawn.y,
+  bossDefeated:{},                      // islandId -> true
+  cleared:{},                           // "islandId:objId" -> true (nidos despejados)
+  unlocked:{[ISLANDS[0].id]:true},      // islas accesibles
+  actionsSinceRust:0
+});
+let state = loadState() || defaultState();
+
+function saveState(){ try{ localStorage.setItem(SAVE_KEY, JSON.stringify(state)); }catch(e){} }
+function loadState(){ try{ const r=localStorage.getItem(SAVE_KEY); return r?JSON.parse(r):null; }catch(e){ return null; } }
+function resetGame(){ state = defaultState(); saveState(); buildWorld(); updateHUD(); refreshActionBtn(); closePanel(); toast('Progreso reiniciado'); }
+
+/* ----------------------------------------------------------------------
+   ACCESOS DERIVADOS DEL ESTADO
+   ---------------------------------------------------------------------- */
+const island = ()=>ISLANDS[state.islandIndex];
+const ALL_VOCAB = ISLANDS.flatMap(i=>i.vocab);
+const byId = id => ALL_VOCAB.find(w=>w.id===id);
+let MAP=[], ROWS=0, COLS=0, OBJECTS=[];
+
+function loadIsland(){
+  const isl=island();
+  MAP = isl.map.map(r=>r.split(''));
+  ROWS=MAP.length; COLS=MAP[0].length;
+  OBJECTS = isl.objects;
+  document.getElementById('islandName').textContent='🏝️ '+isl.name+' — '+isl.theme;
+}
+const walkable = (x,y)=> x>=0&&y>=0&&x<COLS&&y<ROWS && (MAP[y][x]==='G'||MAP[y][x]==='P'||MAP[y][x]==='S'||MAP[y][x]==='N');
+const objAt = (x,y)=>OBJECTS.find(o=>o.x===x&&o.y===y);
+const clearedKey = o => island().id+':'+o.id;
+const isCleared = o => !!state.cleared[clearedKey(o)];
+
+/* distractores: significados de la isla actual + algunos globales */
+function meaningPool(){
+  const local=island().vocab.map(w=>w.es);
+  const extra=ALL_VOCAB.map(w=>w.es);
+  return [...new Set([...local, ...extra])];
+}
+function buildChoices(correctEs){
+  const others=meaningPool().filter(m=>m!==correctEs);
+  const picks=[];
+  while(picks.length<3 && others.length){
+    const c=others[Math.floor(Math.random()*others.length)];
+    if(!picks.includes(c)) picks.push(c);
+  }
+  const opts=[correctEs,...picks];
+  for(let i=opts.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[opts[i],opts[j]]=[opts[j],opts[i]];}
+  return opts;
+}
+/* ids aprendidos que existen en la isla actual (para combate/jefe relevante) */
+function learnedHere(){
+  return island().vocab.map(w=>w.id).filter(id=>state.learned[id]);
+}
+function anyLearnedId(){
+  const here=learnedHere();
+  const pool=here.length?here:Object.keys(state.learned);
+  return pool[Math.floor(Math.random()*pool.length)];
+}
+
+/* ----------------------------------------------------------------------
+   RENDER DEL MUNDO
+   ---------------------------------------------------------------------- */
+const world = document.getElementById('world');
+const TILE = ()=>parseInt(getComputedStyle(document.documentElement).getPropertyValue('--tile'));
+function buildWorld(){
+  loadIsland();
+  const ts=TILE();
+  world.style.width = COLS*ts+'px';
+  world.style.height = ROWS*ts+'px';
+  world.innerHTML='';
+  for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++){
+    const d=document.createElement('div');
+    d.className='tile t-'+MAP[y][x];
+    d.style.left=x*ts+'px'; d.style.top=y*ts+'px';
+    world.appendChild(d);
+  }
+  OBJECTS.forEach(o=>{
+    const d=document.createElement('div');
+    const done = (o.kind==='boss'&&state.bossDefeated[island().id]) || (o.kind==='enemies'&&isCleared(o));
+    d.className='obj '+(o.kind==='shop'?'building':'npc')+(done?' cleared':'');
+    d.id='obj-'+o.id;
+    d.style.left=o.x*ts+'px'; d.style.top=o.y*ts+'px';
+    const face = (o.kind==='boss'&&state.bossDefeated[island().id]&&o.face2)?o.face2 : o.face;
+    d.innerHTML='<span class="emoji">'+face+'</span><div class="ring" hidden></div>';
+    d.addEventListener('click',()=>{ if(isAdjacent(o)) interact(o); });
+    world.appendChild(d);
+  });
+  const p=document.createElement('div');
+  p.id='player'; p.textContent='🧑‍🦰';
+  world.appendChild(p);
+  positionPlayer();
+}
+function positionPlayer(){
+  const ts=TILE();
+  const p=document.getElementById('player');
+  p.style.left=state.px*ts+'px'; p.style.top=state.py*ts+'px';
+}
+
+/* ----------------------------------------------------------------------
+   MOVIMIENTO
+   ---------------------------------------------------------------------- */
+function isAdjacent(o){
+  const d=Math.abs(o.x-state.px)+Math.abs(o.y-state.py);
+  return d===1 || (o.x===state.px&&o.y===state.py);
+}
+function nearestInteractable(){ return OBJECTS.find(o=>isAdjacent(o)) || null; }
+function move(dx,dy){
+  if(document.getElementById('overlay').classList.contains('show')) return;
+  const nx=state.px+dx, ny=state.py+dy;
+  if(!walkable(nx,ny) || objAt(nx,ny)) return;
+  state.px=nx; state.py=ny;
+  positionPlayer(); refreshActionBtn(); saveState();
+}
+function refreshActionBtn(){
+  const btn=document.getElementById('actionBtn');
+  OBJECTS.forEach(ob=>{const r=document.querySelector('#obj-'+ob.id+' .ring'); if(r) r.hidden=true;});
+  const o=nearestInteractable();
+  if(o){
+    btn.disabled=false; btn.textContent=labelFor(o);
+    const ring=document.querySelector('#obj-'+o.id+' .ring'); if(ring) ring.hidden=false;
+  }else{ btn.disabled=true; btn.textContent='Acércate a alguien'; }
+}
+function labelFor(o){
+  if(o.kind==='teacher') return '💬 Hablar con '+o.name.split(' ').slice(1).join(' ');
+  if(o.kind==='reviewer') return '🔁 Repasar palabras';
+  if(o.kind==='shop') return '🏪 Entrar a la tienda';
+  if(o.kind==='enemies') return isCleared(o)?'✅ Zona despejada':'⚔️ Combatir enemigos';
+  if(o.kind==='boss') return state.bossDefeated[island().id]?'🚢 Viajar de isla':'⚔️ Enfrentar al jefe';
+}
+
+/* ----------------------------------------------------------------------
+   HUD / TOAST / MODAL
+   ---------------------------------------------------------------------- */
+function updateHUD(){
+  document.getElementById('hpFill').style.width=Math.max(0,state.hp/state.maxHp*100)+'%';
+  document.getElementById('gemCount').textContent=state.gems;
+  document.getElementById('wordCount').textContent=Object.keys(state.learned).length;
+}
+function toast(msg,warn){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.className='toast show'+(warn?' warn':'');
+  clearTimeout(t._t); t._t=setTimeout(()=>t.className='toast'+(warn?' warn':''),2000);
+}
+const overlay=document.getElementById('overlay');
+const panel=document.getElementById('panel');
+function openPanel(html){ panel.innerHTML=html; overlay.classList.add('show'); }
+function closePanel(){ overlay.classList.remove('show'); refreshActionBtn(); }
+function addAction(html){
+  let pa=panel.querySelector('.panel-actions');
+  if(!pa){pa=document.createElement('div'); pa.className='panel-actions'; panel.appendChild(pa);}
+  pa.innerHTML=html;
+}
+
+/* ----------------------------------------------------------------------
+   INTERACCIÓN
+   ---------------------------------------------------------------------- */
+function interact(o){
+  if(o.kind==='teacher') talkTeacher(o);
+  else if(o.kind==='reviewer') talkReviewer(o);
+  else if(o.kind==='shop') openShop(o);
+  else if(o.kind==='enemies') startCombat(o);
+  else if(o.kind==='boss') state.bossDefeated[island().id]?openTravel():startBoss(o);
+}
+document.getElementById('actionBtn').addEventListener('click',()=>{const o=nearestInteractable(); if(o) interact(o);});
+
+/* ---------- Aldeano que enseña (pista, no respuesta) ---------- */
+function talkTeacher(o){
+  const next=o.words.find(id=>!state.learned[id]);
+  if(!next){
+    openPanel(`<h2>${o.face} ${o.name}</h2>
+      <div class="speaker"><div class="face">${o.face}</div>
+      <div class="bubble">¡Ya aprendiste todo lo que te puedo enseñar! Ve a la tienda, despeja una zona de enemigos o repasa con el guía de repaso.</div></div>
+      <div class="panel-actions"><button class="btn" onclick="closePanel()">Listo</button></div>`);
+    return;
+  }
+  const w=byId(next);
+  openPanel(`<h2>${o.face} ${o.name}</h2>
+    <div class="speaker"><div class="face">${o.face}</div>
+      <div class="bubble">Hoy aprenderás la palabra <b>“${w.en}”</b>.<br><br>
+      Mi pista: <b>${w.hint}</b><br><br>No te doy la respuesta: dedúcela tú. ¿Ya sabes qué significa?</div></div>
+    <div class="panel-actions">
+      <button class="btn ghost" onclick="closePanel()">Después</button>
+      <button class="btn" onclick="learnChallenge('${w.id}')">Creo que ya lo sé</button>
+    </div>`);
+}
+function learnChallenge(id){
+  const w=byId(id); const opts=buildChoices(w.es);
+  openPanel(`<h2>💡 ¿Qué significa…?</h2>
+    <div class="wordbig">${w.en}</div>
+    <div class="choices">${opts.map(op=>`<button class="choice" data-v="${op}">${op}</button>`).join('')}</div>
+    <div class="feedback" id="fb"></div>`);
+  panel.querySelectorAll('.choice').forEach(btn=>btn.addEventListener('click',()=>resolveLearn(btn,id,w.es)));
+}
+function resolveLearn(btn,id,correct){
+  const right=btn.dataset.v===correct;
+  panel.querySelectorAll('.choice').forEach(b=>{b.disabled=true;
+    if(b.dataset.v===correct)b.classList.add('correct'); else if(b===btn)b.classList.add('wrong');});
+  const fb=document.getElementById('fb');
+  if(right){
+    state.learned[id]={mastery:1, rusty:false};
+    state.gems+=2; updateHUD(); maybeRust(); saveState();
+    fb.className='feedback good'; fb.textContent=`¡Correcto! Aprendiste “${byId(id).en}”. +2 💎`;
+    addAction(`<button class="btn" onclick="closePanel()">Seguir</button>`);
+  }else{
+    fb.className='feedback bad'; fb.textContent='Casi. Vuelve a leer la pista del aldeano e inténtalo.';
+    addAction(`<button class="btn" onclick="learnChallenge('${id}')">Intentar de nuevo</button>`);
+  }
+}
+
+/* ---------- Repaso espaciado ---------- */
+function maybeRust(){
+  state.actionsSinceRust++;
+  const fresh=Object.keys(state.learned).filter(id=>!state.learned[id].rusty);
+  if(state.actionsSinceRust>=3 && fresh.length>=2){
+    const pick=fresh[Math.floor(Math.random()*fresh.length)];
+    state.learned[pick].rusty=true; state.actionsSinceRust=0;
+    toast('🔁 Una palabra se oxidó: visita al guía de repaso', true);
+  }
+}
+function talkReviewer(o){
+  const rusty=Object.keys(state.learned).filter(id=>state.learned[id].rusty);
+  if(rusty.length===0){
+    openPanel(`<h2>🔁 ${o.name}</h2>
+      <div class="speaker"><div class="face">${o.face}</div>
+      <div class="bubble">¡Tienes todas tus palabras frescas! No hay nada que repasar ahora. 🌿</div></div>
+      <div class="panel-actions"><button class="btn" onclick="closePanel()">Genial</button></div>`);
+    return;
+  }
+  const id=rusty[0], w=byId(id), opts=buildChoices(w.es);
+  openPanel(`<h2>🔁 ${o.name}</h2>
+    <div class="speaker"><div class="face">${o.face}</div>
+    <div class="bubble">Esta palabra se te está olvidando. ¡Refréscala! (quedan ${rusty.length} por repasar)</div></div>
+    <div class="wordbig">${w.en}</div>
+    <div class="choices">${opts.map(op=>`<button class="choice" data-v="${op}">${op}</button>`).join('')}</div>
+    <div class="feedback" id="fb"></div>`);
+  panel.querySelectorAll('.choice').forEach(btn=>btn.addEventListener('click',()=>{
+    const right=btn.dataset.v===w.es;
+    panel.querySelectorAll('.choice').forEach(b=>{b.disabled=true;
+      if(b.dataset.v===w.es)b.classList.add('correct'); else if(b===btn)b.classList.add('wrong');});
+    const fb=document.getElementById('fb');
+    if(right){
+      state.learned[id].rusty=false;
+      state.learned[id].mastery=Math.min(3,state.learned[id].mastery+1);
+      state.gems+=1; updateHUD(); saveState();
+      fb.className='feedback good'; fb.textContent='¡Refrescada! Tu dominio subió. +1 💎';
+      addAction(`<button class="btn" onclick="talkReviewer(OBJECTS.find(o=>o.id==='${o.id}'))">Repasar otra</button>
+                 <button class="btn ghost" onclick="closePanel()">Salir</button>`);
+    }else{
+      fb.className='feedback bad'; fb.textContent='No pasa nada, repásala otra vez.';
+      addAction(`<button class="btn" onclick="talkReviewer(OBJECTS.find(o=>o.id==='${o.id}'))">Reintentar</button>`);
+    }
+  }));
+}
+
+/* ---------- Tienda (pagar = demostrar lo aprendido) ---------- */
+function openShop(o){
+  const items=SHOP.map(it=>{
+    const owned=state.gear[it.key];
+    return `<div class="shop-item">
+      <span class="si-ico">${it.ico}</span>
+      <div><div class="si-name">${it.name}</div><div class="si-desc">${it.desc}</div></div>
+      <div class="si-buy">${owned?'<span class="owned">✔ Comprado</span>':
+        `<div class="price">💎 ${it.price}</div>
+         <button class="btn gold" ${state.gems<it.price?'disabled':''} onclick="buyFlow('${it.key}')">Comprar</button>`}</div>
+    </div>`;}).join('');
+  openPanel(`<h2>🏪 ${o.name}</h2>
+    <div class="speaker"><div class="face">🧔</div>
+    <div class="bubble">Tienes <b>${state.gems} 💎</b>. Elige tu equipo. Aquí no se paga solo con gemas: <b>demuéstrame que aprendiste</b> una palabra.</div></div>
+    ${items}
+    <div class="panel-actions"><button class="btn ghost" onclick="closePanel()">Salir</button></div>`);
+}
+function buyFlow(key){
+  const item=SHOP.find(s=>s.key===key);
+  if(Object.keys(state.learned).length===0){ toast('Aprende una palabra primero',true); return; }
+  const id=anyLearnedId();
+  const w=byId(id), opts=buildChoices(w.es);
+  openPanel(`<h2>🤝 Demuestra para pagar</h2>
+    <div class="speaker"><div class="face">🧔</div>
+    <div class="bubble">Para llevarte el <b>${item.name}</b>, dime: ¿qué significa esta palabra?</div></div>
+    <div class="wordbig">${w.en}</div>
+    <div class="choices">${opts.map(op=>`<button class="choice" data-v="${op}">${op}</button>`).join('')}</div>
+    <div class="feedback" id="fb"></div>`);
+  panel.querySelectorAll('.choice').forEach(btn=>btn.addEventListener('click',()=>{
+    const right=btn.dataset.v===w.es;
+    panel.querySelectorAll('.choice').forEach(b=>{b.disabled=true;
+      if(b.dataset.v===w.es)b.classList.add('correct'); else if(b===btn)b.classList.add('wrong');});
+    const fb=document.getElementById('fb');
+    if(right){
+      state.gems-=item.price; state.gear[key]=true; updateHUD(); saveState();
+      fb.className='feedback good'; fb.textContent=`¡Trato hecho! Equipaste el ${item.name}.`;
+      addAction(`<button class="btn" onclick="openShop(OBJECTS.find(o=>o.id==='shop'))">Seguir comprando</button>`);
+    }else{
+      fb.className='feedback bad'; fb.textContent=`La respuesta era “${w.es}”. Inténtalo de nuevo, sin prisa.`;
+      addAction(`<button class="btn" onclick="buyFlow('${key}')">Reintentar</button>`);
+    }
+  }));
+}
+
+/* ---------- Combate: enemigos que se multiplican (dificultad inversa) ---------- */
+/* A mayor nivel de isla, más enemigos pero con menos vida: 1 acierto = 1 enemigo. */
+let combat=null;
+function startCombat(o){
+  if(isCleared(o)){
+    openPanel(`<h2>✅ ${o.name}</h2>
+      <div class="speaker"><div class="face">${o.face}</div>
+      <div class="bubble">Ya despejaste esta zona. ¡Buen trabajo!</div></div>
+      <div class="panel-actions"><button class="btn" onclick="closePanel()">Cerrar</button></div>`);
+    return;
+  }
+  if(Object.keys(state.learned).length<2){
+    openPanel(`<h2>⚔️ ${o.name}</h2>
+      <div class="speaker"><div class="face">${o.face}</div>
+      <div class="bubble">Aprende al menos <b>2 palabras</b> con los aldeanos para tener con qué luchar.</div></div>
+      <div class="panel-actions"><button class="btn ghost" onclick="closePanel()">Volver</button></div>`);
+    return;
+  }
+  const level=state.islandIndex+1;            // nivel de la isla
+  combat={obj:o, total:level+1, killed:0, face:o.face};
+  combatTurn();
+}
+function combatTurn(){
+  if(combat.killed>=combat.total){ combatWin(); return; }
+  const id=anyLearnedId(), w=byId(id), opts=buildChoices(w.es);
+  let row='';
+  for(let i=0;i<combat.total;i++) row+=`<div class="enemy ${i<combat.killed?'dead':''}">${i<combat.killed?'💀':combat.face}</div>`;
+  openPanel(`<h2>⚔️ ${combat.obj.name}</h2>
+    <p style="font-size:12px;opacity:.85;text-align:center;margin-bottom:6px">Quedan ${combat.total-combat.killed}. Cada respuesta correcta derrota a uno.</p>
+    <div class="enemy-row">${row}</div>
+    <div class="bossbar selfbar" style="margin-bottom:10px"><i style="width:${state.hp/state.maxHp*100}%"></i></div>
+    <div class="speaker"><div class="face">${combat.face}</div>
+    <div class="bubble">¡Atácalos! ¿Qué significa esta palabra?</div></div>
+    <div class="wordbig">${w.en}</div>
+    <div class="choices">${opts.map(op=>`<button class="choice" data-v="${op}">${op}</button>`).join('')}</div>
+    <div class="feedback" id="fb"></div>`);
+  panel.querySelectorAll('.choice').forEach(btn=>btn.addEventListener('click',()=>resolveCombat(btn,id,w.es)));
+}
+function damageTaken(){
+  let d=14;
+  if(state.gear.helmet) d-=4;
+  if(state.gear.chest)  d-=6;
+  return Math.max(4,d);
+}
+function resolveCombat(btn,id,correct){
+  const right=btn.dataset.v===correct;
+  panel.querySelectorAll('.choice').forEach(b=>{b.disabled=true;
+    if(b.dataset.v===correct)b.classList.add('correct'); else if(b===btn)b.classList.add('wrong');});
+  const fb=document.getElementById('fb');
+  if(right){
+    combat.killed++; state.learned[id].mastery=Math.min(3,state.learned[id].mastery+1);
+    fb.className='feedback good'; fb.textContent='¡Golpe certero! Enemigo derrotado.';
+  }else{
+    const dmg=damageTaken(); state.hp=Math.max(0,state.hp-dmg);
+    state.learned[id].mastery=Math.max(1,state.learned[id].mastery-1); updateHUD();
+    fb.className='feedback bad'; fb.textContent=`Fallaste — te golpean (-${dmg} ❤️). Era “${correct}”.`;
+  }
+  saveState();
+  setTimeout(()=>{
+    if(state.hp<=0){ defeated('Los enemigos te superaron.'); return; }
+    if(combat.killed>=combat.total) combatWin();
+    else addAction(`<button class="btn" onclick="combatTurn()">Siguiente</button>`);
+  },650);
+}
+function combatWin(){
+  const reward=6+state.islandIndex*3;
+  state.gems+=reward; state.cleared[clearedKey(combat.obj)]=true; updateHUD(); saveState();
+  const el=document.querySelector('#obj-'+combat.obj.id); if(el) el.classList.add('cleared');
+  openPanel(`<h2>🎉 ¡Zona despejada!</h2>
+    <div class="speaker"><div class="face">${combat.face}</div>
+    <div class="bubble">Derrotaste a ${combat.total} enemigos usando lo que aprendiste. Recompensa: <b>+${reward} 💎</b>.</div></div>
+    <div class="panel-actions"><button class="btn" onclick="closePanel()">¡Genial!</button></div>`);
+}
+
+/* ---------- Jefe ---------- */
+const boss={hp:120, max:120};
+function startBoss(o){
+  if(!state.gear.sword){
+    openPanel(`<h2>${o.face} ${o.name}</h2>
+      <div class="speaker"><div class="face">${o.face}</div>
+      <div class="bubble">${o.greeting}<br><br><b>Te falta una espada.</b> Consíguela en la tienda con tus gemas.</div></div>
+      <div class="panel-actions"><button class="btn ghost" onclick="closePanel()">Volver</button></div>`);
+    return;
+  }
+  if(Object.keys(state.learned).length<3){
+    openPanel(`<h2>${o.face} ${o.name}</h2>
+      <div class="speaker"><div class="face">${o.face}</div>
+      <div class="bubble">Aprende al menos <b>3 palabras</b> para tener con qué atacarme.</div></div>
+      <div class="panel-actions"><button class="btn ghost" onclick="closePanel()">Volver</button></div>`);
+    return;
+  }
+  boss.max=100+state.islandIndex*30; boss.hp=boss.max;
+  state.hp=state.maxHp; updateHUD(); bossTurn(o);
+}
+function bossTurn(o){
+  const id=anyLearnedId(), w=byId(id), opts=buildChoices(w.es);
+  openPanel(`<div class="bosswrap">
+      <div class="boss-face" id="bossFace">${o.face}</div>
+      <div class="barlabel">${o.name}</div>
+      <div class="bossbar"><i id="bossHp" style="width:${boss.hp/boss.max*100}%"></i></div>
+      <div class="barlabel">Tu vida</div>
+      <div class="bossbar selfbar"><i id="selfHp" style="width:${state.hp/state.maxHp*100}%"></i></div>
+    </div>
+    <p style="margin:14px 0 6px;font-weight:800;text-align:center">¡Ataca! Traduce para golpear:</p>
+    <div class="wordbig">${w.en}</div>
+    <div class="choices">${opts.map(op=>`<button class="choice" data-v="${op}">${op}</button>`).join('')}</div>
+    <div class="feedback" id="fb"></div>`);
+  panel.querySelectorAll('.choice').forEach(btn=>btn.addEventListener('click',()=>resolveAttack(btn,id,w.es,o)));
+}
+function resolveAttack(btn,id,correct,o){
+  const right=btn.dataset.v===correct;
+  panel.querySelectorAll('.choice').forEach(b=>{b.disabled=true;
+    if(b.dataset.v===correct)b.classList.add('correct'); else if(b===btn)b.classList.add('wrong');});
+  const fb=document.getElementById('fb');
+  if(right){
+    const dmg=12+(state.gear.sword?8:0)+state.learned[id].mastery*3;
+    boss.hp=Math.max(0,boss.hp-dmg);
+    document.getElementById('bossHp').style.width=boss.hp/boss.max*100+'%';
+    document.getElementById('bossFace').classList.add('boss-shake');
+    fb.className='feedback good'; fb.textContent=`¡Golpe de ${dmg}! El jefe retrocede.`;
+  }else{
+    const dmg=damageTaken()+4;
+    state.hp=Math.max(0,state.hp-dmg);
+    document.getElementById('selfHp').style.width=state.hp/state.maxHp*100+'%'; updateHUD();
+    fb.className='feedback bad'; fb.textContent=`Era “${correct}”. El jefe te golpea (-${dmg} ❤️).`;
+  }
+  saveState();
+  setTimeout(()=>{
+    if(boss.hp<=0) winBoss(o);
+    else if(state.hp<=0) defeated('El jefe fue más fuerte esta vez.');
+    else addAction(`<button class="btn" onclick="bossTurn(OBJECTS.find(x=>x.id==='${o.id}'))">Siguiente ataque</button>`);
+  },650);
+}
+function winBoss(o){
+  state.bossDefeated[island().id]=true; state.gems+=10;
+  const next=ISLANDS[state.islandIndex+1];
+  if(next) state.unlocked[next.id]=true;
+  updateHUD(); saveState();
+  const bf=document.querySelector('#obj-boss .emoji'); if(bf&&o.face2) bf.textContent=o.face2;
+  const bel=document.querySelector('#obj-boss'); if(bel) bel.classList.add('cleared');
+  openPanel(`<h2>🎉 ¡${island().name} liberada!</h2>
+    <div class="speaker"><div class="face">🌅</div>
+    <div class="bubble">Venciste a <b>${o.name}</b> usando lo que aprendiste. Recompensa: <b>+10 💎</b>.<br><br>
+    ${next?`Se desbloqueó una nueva isla: <b>${next.name}</b> (${next.theme}). Acércate al muelle del jefe y pulsa <b>🚢 Viajar</b>.`
+          :`¡Has completado todos los módulos disponibles por ahora! Vuelve cuando se sumen nuevas islas. 🏆`}</div></div>
+    <div class="panel-actions">${next?`<button class="btn gold" onclick="openTravel()">🚢 Viajar ahora</button>`:''}
+      <button class="btn ghost" onclick="closePanel()">Cerrar</button></div>`);
+}
+function defeated(msg){
+  state.hp=state.maxHp; updateHUD(); saveState();
+  openPanel(`<h2>💫 Te recuperas</h2>
+    <div class="speaker"><div class="face">😵</div>
+    <div class="bubble">${msg} No pierdes tu progreso: aprende o repasa más palabras y compra más armadura antes de volver.</div></div>
+    <div class="panel-actions"><button class="btn" onclick="closePanel()">Entendido</button></div>`);
+}
+
+/* ---------- Viaje entre islas ---------- */
+function openTravel(){
+  const items=ISLANDS.map((isl,idx)=>{
+    const unlocked=state.unlocked[isl.id];
+    const here=idx===state.islandIndex;
+    const done=state.bossDefeated[isl.id];
+    return `<div class="isl-item ${unlocked?'':'locked'}">
+      <span class="ii-ico">${done?'🏖️':unlocked?'🏝️':'🔒'}</span>
+      <div><div class="ii-name">${isl.name} ${here?'<span class="tag">(aquí)</span>':''}</div>
+      <div class="ii-desc">${isl.theme}</div></div>
+      <div class="ii-go">${unlocked
+        ? (here?'<span class="tag">actual</span>':`<button class="btn" onclick="travelTo(${idx})">Ir</button>`)
+        : '<span class="tag lock">Vence al jefe anterior</span>'}</div>
+    </div>`;}).join('');
+  openPanel(`<h2>🚢 Viajar entre islas</h2>
+    <p style="font-size:13px;opacity:.85;margin-bottom:8px">Cada isla es un módulo de aprendizaje. Vence a su jefe para abrir la siguiente.</p>
+    ${items}
+    <div class="panel-actions"><button class="btn ghost" onclick="closePanel()">Cerrar</button></div>`);
+}
+function travelTo(idx){
+  state.islandIndex=idx;
+  state.px=ISLANDS[idx].spawn.x; state.py=ISLANDS[idx].spawn.y;
+  state.hp=state.maxHp;
+  buildWorld(); updateHUD(); saveState(); closePanel();
+  toast('Llegaste a '+ISLANDS[idx].name);
+}
+
+/* ---------- Banco de palabras ---------- */
+document.getElementById('bankBtn').addEventListener('click',openBank);
+function openBank(){
+  const ids=Object.keys(state.learned);
+  const stars=m=>'⭐'.repeat(m)+'·'.repeat(3-m);
+  const cards=ids.length? ids.map(id=>{
+    const w=byId(id), s=state.learned[id];
+    return `<div class="wb-card ${s.rusty?'rusty':''}">
+      <div class="wb-en">${w.en}</div><div class="wb-es">${w.es}</div>
+      <div class="wb-mast">Dominio: ${stars(s.mastery)}</div>
+      ${s.rusty?'<div class="wb-rusty-tag">⚠ por repasar</div>':''}</div>`;}).join('')
+    : '<div class="empty">Aún no aprendes palabras.<br>Habla con un aldeano (💬) para empezar.</div>';
+  openPanel(`<h2>📖 Mis palabras (${ids.length})</h2>
+    <p style="font-size:13px;opacity:.85;margin-bottom:6px">Tus palabras son tu moneda y tu fuerza. Más dominio = más daño.</p>
+    <div class="wb-grid">${cards}</div>
+    <div class="panel-actions">
+      <button class="btn ghost" onclick="openTravel()">🚢 Viajar</button>
+      <button class="btn danger" onclick="confirmReset()">↺ Reiniciar</button>
+      <button class="btn ghost" onclick="closePanel()">Cerrar</button></div>`);
+}
+function confirmReset(){
+  openPanel(`<h2>↺ Reiniciar progreso</h2>
+    <div class="speaker"><div class="face">⚠️</div>
+    <div class="bubble">Esto borra tus palabras, gemas y equipo. ¿Seguro?</div></div>
+    <div class="panel-actions">
+      <button class="btn ghost" onclick="openBank()">Cancelar</button>
+      <button class="btn danger" onclick="resetGame()">Sí, reiniciar</button></div>`);
+}
+
+/* ---------- Teclado / pad ---------- */
+window.addEventListener('keydown',e=>{
+  const k=e.key.toLowerCase();
+  if(['arrowup','w'].includes(k)){move(0,-1);e.preventDefault();}
+  else if(['arrowdown','s'].includes(k)){move(0,1);e.preventDefault();}
+  else if(['arrowleft','a'].includes(k)){move(-1,0);e.preventDefault();}
+  else if(['arrowright','d'].includes(k)){move(1,0);e.preventDefault();}
+  else if(k==='e'){const o=nearestInteractable(); if(o&&!overlay.classList.contains('show')) interact(o);}
+  else if(k==='m'&&!overlay.classList.contains('show')) openTravel();
+  else if(k==='escape'&&overlay.classList.contains('show')) closePanel();
+});
+document.querySelectorAll('.dpad button').forEach(b=>b.addEventListener('click',()=>{
+  const d=b.dataset.dir;
+  move(d==='left'?-1:d==='right'?1:0, d==='up'?-1:d==='down'?1:0);
+}));
+
+/* ---------- Intro ---------- */
+function intro(){
+  openPanel(`<h2 class="pixel" style="font-size:12px">APRENDER JUGANDO</h2>
+    <div class="speaker"><div class="face">🏝️</div>
+    <div class="bubble">Explora la <b>${island().name}</b>. Para liberarla:
+    <br>1️⃣ Habla con los aldeanos: te dan <b>pistas</b>, no respuestas. Tú deduces la palabra.
+    <br>2️⃣ Cada palabra aprendida es <b>moneda y fuerza</b>.
+    <br>3️⃣ Despeja enemigos, compra equipo y vence al <b>jefe</b> para abrir la siguiente isla.
+    <br><br>Muévete con flechas / WASD o el pad. Acércate y pulsa <b>E</b> (o el botón dorado) para interactuar.</div></div>
+    <div class="panel-actions"><button class="btn gold" onclick="closePanel()">¡Empezar!</button></div>`);
+}
+
+/* ---------- Init ---------- */
+buildWorld(); updateHUD(); refreshActionBtn();
+if(Object.keys(state.learned).length===0 && state.islandIndex===0) intro();
+window.addEventListener('resize',()=>{buildWorld(); refreshActionBtn();});
+</script>
+</body>
+</html>

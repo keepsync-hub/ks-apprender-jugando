@@ -1,1 +1,176 @@
-# ks-apprender-jugando
+# Aprender Jugando 🏝️
+
+**Aprender Jugando** es una aplicación web educativa, autocontenida en un solo
+archivo (`index.html`), con mecánica de juego estilo Minecraft/Catan. La premisa
+es simple: **lo que aprendes es lo que te permite avanzar en el juego**.
+
+Exploras una isla con un personaje que mueves con el teclado, descubres a los
+aldeanos con los que debes hablar, y cada palabra que aprendes se convierte en tu
+**moneda** (para comprar equipo) y en tu **arma** (para combatir y vencer al jefe).
+
+El enfoque inicial es **aprender inglés** con vocabulario acotado a propósito,
+para mantener el contenido seguro y enfocado.
+
+---
+
+## 🎮 Cómo se juega
+
+| Acción | Teclado | Táctil |
+|---|---|---|
+| Moverse | Flechas o `WASD` | D-pad en pantalla |
+| Interactuar | `E` | Botón dorado "Acércate a alguien" |
+| Viajar entre islas | `M` | Botón 🚢 en "Mis palabras" |
+| Cerrar diálogo | `Esc` | Botón del cuadro |
+
+1. **Mueve a tu personaje** libremente por la isla y acércate a los personajes.
+   El que tengas al lado aparece resaltado con un anillo dorado.
+2. **Habla con los aldeanos (💬).** No te dan la respuesta: te dan una **pista
+   socrática** y tú deduces el significado en un cuadro de diálogo de opción
+   múltiple. Acertar = aprendes la palabra y ganas 💎.
+3. **Repasa (🔁).** Con el tiempo algunas palabras se "oxidan". El guía de repaso
+   te las vuelve a preguntar (repaso espaciado ligero) para afianzar el dominio.
+4. **Compra equipo en la tienda (🏪).** Aquí no se paga solo con gemas:
+   **demuestras lo aprendido** respondiendo qué significa una palabra. Si
+   aciertas, el trato es tuyo. El equipo (espada, casco, pechera) te hace más
+   fuerte y reduce el daño.
+5. **Combate enemigos (👾).** Combate de **dificultad inversa**: a mayor nivel de
+   isla aparecen **más enemigos pero con menos vida** (uno por respuesta
+   correcta). Cada acierto derrota a un enemigo; fallar te hace daño.
+6. **Vence al jefe (👹/🐲).** El jefe solo cae con conocimiento: necesitas una
+   **espada** y haber aprendido al menos 3 palabras. Cada respuesta correcta es
+   un golpe; cada error, daño que tu armadura amortigua.
+7. **Viaja a la siguiente isla (🚢).** Al vencer al jefe se **desbloquea la
+   siguiente isla** (el siguiente módulo de aprendizaje). Tu progreso, palabras
+   y equipo se conservan.
+
+El progreso se guarda automáticamente en el navegador (`localStorage`). Puedes
+reiniciarlo desde **📖 Mis palabras → ↺ Reiniciar**.
+
+---
+
+## 🧩 De dónde sale
+
+Este juego **combina dos prototipos** en una sola experiencia:
+
+- La **exploración libre con movimiento** de un personaje por un mapa de tiles y
+  los **cuadros de diálogo** modales (la versión más completa de las ventanas de
+  diálogo).
+- La **progresión por etapas estilo Catan**, el **combate de enemigos que se
+  multiplican**, la **armadura** y los **jefes** del prototipo basado en escenas.
+
+El resultado mantiene la dinámica de moverte con las flechas y descubrir a quién
+hablar, pero con diálogos ricos y una estructura pensada para crecer.
+
+---
+
+## 🗺️ Arquitectura: cada isla es un módulo de aprendizaje
+
+Todo el contenido es **data-driven**. El motor (movimiento, diálogos, tienda,
+combate, jefe, viaje) es genérico y lee de un único array: `ISLANDS`.
+
+Cada isla = un módulo independiente con su tema, mapa, vocabulario, aldeanos,
+tienda y jefe. Hoy vienen incluidas:
+
+1. **Isla Niebla** — inglés: saludos y básicos.
+2. **Isla del Bosque** — inglés: naturaleza.
+
+### ➕ Añadir una nueva isla (nuevo módulo)
+
+Abre `index.html`, busca el array `ISLANDS` y añade un objeto nuevo. No hace
+falta tocar el motor:
+
+```js
+{
+  id:'mar',                      // identificador único de la isla
+  name:'Isla del Mar',
+  theme:'Inglés · el océano',
+  floor:'G',                     // tile base (decorativo)
+
+  // 1) VOCABULARIO del módulo. Cada 'id' debe ser único en TODO el juego.
+  //    La 'hint' es una PISTA socrática, nunca la traducción directa.
+  vocab:[
+    {id:'fish', en:'fish', es:'pez',   hint:'Animal que vive y nada en el agua.'},
+    {id:'boat', en:'boat', es:'barco', hint:'Lo usas para viajar sobre el agua.'},
+    // ...al menos 3 palabras para poder vencer al jefe
+  ],
+
+  // 2) MAPA: filas de igual longitud. Tiles:
+  //    W=agua (no caminable) · G=césped · P=camino · S=arena · N=nieve
+  map:[
+    "WWWWWWWWWWWWW",
+    "WGGGGGGGGGGGW",
+    "WGGGGGGGGGGGW",
+    "WWWWWWWWWWWWW"
+  ],
+  spawn:{x:3,y:2},               // casilla caminable donde aparece el jugador
+
+  // 3) OBJETOS / personajes (coordenadas x,y en el mapa):
+  objects:[
+    // teacher: enseña las palabras de 'words' (ids del vocab) con pistas
+    {id:'teacherE', kind:'teacher', face:'🧑‍🏫', x:4, y:1, name:'Capitán Sol',
+     words:['fish','boat']},
+    // reviewer: repaso espaciado de palabras "oxidadas"
+    {id:'reviewer', kind:'reviewer', face:'🐬', x:6, y:2, name:'Delfín Coco'},
+    // shop: tienda de equipo (paga demostrando lo aprendido)
+    {id:'shop',     kind:'shop',     face:'🏪', x:2, y:1, name:'Tienda del Puerto'},
+    // enemies: combate de enemigos que se multiplican
+    {id:'enemies',  kind:'enemies',  face:'🦀', x:8, y:1, name:'Banco de cangrejos'},
+    // boss: jefe final; al vencerlo se desbloquea la siguiente isla del array
+    {id:'boss',     kind:'boss',     face:'🦈', x:6, y:1, name:'Kraken', face2:'🏳️',
+     greeting:'¡Nadie cruza mi mar sin demostrar lo que sabe!'}
+  ]
+}
+```
+
+Reglas rápidas:
+
+- **`id` de cada palabra debe ser único en todo el juego** (el banco de palabras
+  y el repaso son globales entre islas).
+- Cada isla debería tener al menos **un `teacher`, una `shop` y un `boss`**;
+  `reviewer` y `enemies` son recomendables pero opcionales.
+- El **orden del array es la progresión**: vencer al jefe de la isla *N*
+  desbloquea la isla *N+1*.
+- Las pistas (`hint`) deben **orientar sin resolver** (mecánica socrática).
+
+Así, "sumar nuevas islas" = "sumar nuevos módulos de aprendizaje" sin escribir
+lógica nueva. La idea es ir creciendo con más temas (familia, comida, números…)
+e incluso otros dominios (lectura, etc.).
+
+---
+
+## 🚀 Ejecutar
+
+No requiere build ni dependencias. Es un único archivo autocontenido:
+
+- **Doble clic** en `index.html`, o
+- Ábrelo en cualquier navegador moderno.
+
+Opcionalmente, para servirlo en local:
+
+```bash
+python3 -m http.server 8000
+# luego abre http://localhost:8000
+```
+
+---
+
+## 🧠 Principios de diseño
+
+- **Aprender deduciendo, no memorizando:** los aldeanos dan pistas; el jugador
+  infiere el significado.
+- **El conocimiento es el recurso:** las palabras son moneda (tienda) y arma
+  (combate y jefe).
+- **Refuerzo en el tiempo:** las palabras se "oxidan" y se repasan (SRS ligero).
+- **Dificultad inversa:** más enemigos con menos vida a medida que avanzas.
+- **Contenido acotado y extensible:** vocabulario seguro y enfocado, organizado
+  en módulos (islas) fáciles de ampliar.
+
+---
+
+## 🗂️ Estructura del repositorio
+
+```
+.
+├── index.html   # el juego completo (HTML + CSS + JS, sin dependencias)
+└── README.md    # este archivo
+```
