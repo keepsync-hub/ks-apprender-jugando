@@ -161,6 +161,25 @@
   .wb-card.rusty{background:#e8d9b8; outline:2px dashed var(--danger)}
   .wb-rusty-tag{font-size:10px; color:var(--danger); font-weight:800}
   .empty{opacity:.7; font-size:14px; text-align:center; padding:18px}
+  .wb-sub{font-size:12px; opacity:.85; margin:8px 0 4px; color:var(--leaf); font-weight:800}
+
+  /* medals / achievements */
+  #hud .stat.clickable{cursor:pointer}
+  #objective{
+    display:flex; align-items:center; gap:8px;
+    padding:7px 12px; background:#2a1f12; border-bottom:4px solid #16110b;
+    font-size:12px; font-weight:800; color:var(--cream)}
+  #objective .ob-ico{font-size:16px}
+  #objective .ob-text b{color:var(--gold)}
+  #objective .ob-prog{margin-left:auto; font-size:11px; color:var(--leaf); white-space:nowrap}
+  .medal-grid{display:grid; grid-template-columns:1fr 1fr; gap:8px; max-height:52vh; overflow:auto; margin-top:6px}
+  .medal-card{display:flex; gap:9px; align-items:center; background:var(--cream); color:#2a1c0e;
+    border:2px solid #16110b; border-radius:8px; padding:8px 10px}
+  .medal-card.locked{filter:grayscale(1); opacity:.55}
+  .medal-card .m-ico{font-size:26px}
+  .medal-card .m-name{font-weight:800; font-size:13px}
+  .medal-card .m-desc{font-size:11px; opacity:.8}
+  .toast.medal{background:var(--gold); color:#3a2a05; border-color:#3a2a05}
 
   /* combat (enemies that multiply) */
   .enemy-row{display:flex; flex-wrap:wrap; gap:6px; justify-content:center; margin:4px 0 10px}
@@ -213,7 +232,14 @@
     <span class="stat" title="Vida"><span class="ico">❤️</span><span class="hpbar"><i id="hpFill" style="width:100%"></i></span></span>
     <span class="stat" title="Gemas"><span class="ico">💎</span><span id="gemCount">0</span></span>
     <span class="stat" title="Palabras aprendidas"><span class="ico">📖</span><span id="wordCount">0</span></span>
+    <span class="stat clickable" id="medalStat" title="Logros desbloqueados"><span class="ico">🏅</span><span id="medalCount">0/0</span></span>
     <span class="island" id="islandName">Isla Niebla</span>
+  </div>
+
+  <div id="objective">
+    <span class="ob-ico" id="obIco">🎯</span>
+    <span class="ob-text" id="obText">Explora la isla</span>
+    <span class="ob-prog" id="obProg"></span>
   </div>
 
   <div id="worldWrap"><div id="world"></div></div>
@@ -228,6 +254,7 @@
     <div class="ctrl-right">
       <button class="btn gold" id="actionBtn" disabled>Acércate a alguien</button>
       <button class="btn ghost" id="bankBtn">📖 Mis palabras</button>
+      <button class="btn ghost" id="helpBtn">❓ Ayuda</button>
       <div class="hint-key">Mueve: flechas / WASD · Interactúa: E · Menú: M</div>
     </div>
   </div>
@@ -344,6 +371,35 @@ const SHOP=[
 ];
 
 /* ----------------------------------------------------------------------
+   LOGROS / MEDALLAS (data-driven, igual que islas y tienda)
+   Cada medalla define una condición cond(state, stats) que, al volverse
+   verdadera, la desbloquea. Para añadir un logro nuevo basta con sumar
+   un objeto a este array. learnedCount/masteredCount son helpers globales.
+   ---------------------------------------------------------------------- */
+const MEDALS=[
+  {id:'first',     ico:'🌱', name:'Primer paso',  desc:'Aprende tu primera palabra.',
+   cond:(s)=>learnedCount()>=1},
+  {id:'student',   ico:'📚', name:'Estudioso',    desc:'Aprende 5 palabras.',
+   cond:(s)=>learnedCount()>=5},
+  {id:'polyglot',  ico:'🎓', name:'Políglota',    desc:'Aprende 12 palabras.',
+   cond:(s)=>learnedCount()>=12},
+  {id:'mastery',   ico:'🥇', name:'Maestría',     desc:'Lleva una palabra a dominio ⭐⭐⭐.',
+   cond:(s)=>masteredCount()>=1},
+  {id:'streak5',   ico:'🔥', name:'En racha',     desc:'Acierta 5 respuestas seguidas.',
+   cond:(s,st)=>st.bestStreak>=5},
+  {id:'streak10',  ico:'⚡', name:'Imparable',    desc:'Acierta 10 respuestas seguidas.',
+   cond:(s,st)=>st.bestStreak>=10},
+  {id:'hunter',    ico:'⚔️', name:'Cazador',      desc:'Despeja tu primera zona de enemigos.',
+   cond:(s,st)=>st.zonesCleared>=1},
+  {id:'slayer',    ico:'👑', name:'Vencedor',     desc:'Derrota a tu primer jefe.',
+   cond:(s)=>Object.keys(s.bossDefeated).length>=1},
+  {id:'equipped',  ico:'🛡️', name:'Bien equipado',desc:'Compra las 3 piezas de equipo.',
+   cond:(s)=>s.gear.sword&&s.gear.helmet&&s.gear.chest},
+  {id:'explorer',  ico:'🏝️', name:'Explorador',   desc:'Desbloquea una segunda isla.',
+   cond:(s)=>Object.keys(s.unlocked).length>=2}
+];
+
+/* ----------------------------------------------------------------------
    ESTADO (con guardado en localStorage)
    ---------------------------------------------------------------------- */
 const SAVE_KEY='aprender-jugando-save-v1';
@@ -356,12 +412,22 @@ const defaultState = ()=>({
   bossDefeated:{},                      // islandId -> true
   cleared:{},                           // "islandId:objId" -> true (nidos despejados)
   unlocked:{[ISLANDS[0].id]:true},      // islas accesibles
-  actionsSinceRust:0
+  actionsSinceRust:0,
+  medals:{},                            // id -> true (logros desbloqueados)
+  stats:{correctStreak:0, bestStreak:0, totalCorrect:0, zonesCleared:0}
 });
 let state = loadState() || defaultState();
 
 function saveState(){ try{ localStorage.setItem(SAVE_KEY, JSON.stringify(state)); }catch(e){} }
-function loadState(){ try{ const r=localStorage.getItem(SAVE_KEY); return r?JSON.parse(r):null; }catch(e){ return null; } }
+function loadState(){
+  try{
+    const r=localStorage.getItem(SAVE_KEY); if(!r) return null;
+    const saved=JSON.parse(r);
+    // Fusión hacia adelante: añade campos nuevos sin borrar partidas antiguas.
+    const base=defaultState();
+    return {...base, ...saved, stats:{...base.stats, ...(saved.stats||{})}, medals:saved.medals||{}};
+  }catch(e){ return null; }
+}
 function resetGame(){ state = defaultState(); saveState(); buildWorld(); updateHUD(); refreshActionBtn(); closePanel(); toast('Progreso reiniciado'); }
 
 /* ----------------------------------------------------------------------
@@ -409,6 +475,14 @@ function anyLearnedId(){
   const here=learnedHere();
   const pool=here.length?here:Object.keys(state.learned);
   return pool[Math.floor(Math.random()*pool.length)];
+}
+/* helpers para logros y progreso */
+const learnedCount = ()=>Object.keys(state.learned).length;
+const masteredCount = ()=>Object.values(state.learned).filter(w=>w.mastery>=3).length;
+/* palabras de la isla actual aprendidas / total (para el objetivo) */
+function islandProgress(){
+  const ids=island().vocab.map(w=>w.id);
+  return {done:ids.filter(id=>state.learned[id]).length, total:ids.length};
 }
 
 /* ----------------------------------------------------------------------
@@ -489,6 +563,9 @@ function updateHUD(){
   document.getElementById('hpFill').style.width=Math.max(0,state.hp/state.maxHp*100)+'%';
   document.getElementById('gemCount').textContent=state.gems;
   document.getElementById('wordCount').textContent=Object.keys(state.learned).length;
+  const got=MEDALS.filter(m=>state.medals[m.id]).length;
+  document.getElementById('medalCount').textContent=got+'/'+MEDALS.length;
+  updateObjective();
 }
 function toast(msg,warn){
   const t=document.getElementById('toast');
@@ -503,6 +580,80 @@ function addAction(html){
   let pa=panel.querySelector('.panel-actions');
   if(!pa){pa=document.createElement('div'); pa.className='panel-actions'; panel.appendChild(pa);}
   pa.innerHTML=html;
+}
+
+/* ----------------------------------------------------------------------
+   LOGROS: registro de respuestas, comprobación y celebración
+   ---------------------------------------------------------------------- */
+/* recordAnswer se llama en TODO quiz (aprender, repasar, tienda, combate,
+   jefe) para mantener la racha global y comprobar medallas. */
+function recordAnswer(correct){
+  if(correct){
+    state.stats.totalCorrect++;
+    state.stats.correctStreak++;
+    if(state.stats.correctStreak>state.stats.bestStreak)
+      state.stats.bestStreak=state.stats.correctStreak;
+  }else{
+    state.stats.correctStreak=0;
+  }
+  checkMedals();
+}
+let _medalQueue=[];
+function checkMedals(){
+  MEDALS.forEach(m=>{
+    if(!state.medals[m.id] && m.cond(state, state.stats)) awardMedal(m);
+  });
+  saveState(); updateHUD();
+}
+function awardMedal(m){
+  state.medals[m.id]=true;
+  _medalQueue.push(m);
+  if(_medalQueue.length===1) flushMedalToast();
+}
+function flushMedalToast(){
+  const m=_medalQueue[0];
+  if(!m) return;
+  const t=document.getElementById('toast');
+  t.textContent='🏅 ¡Logro: '+m.name+'!';
+  t.className='toast show medal';
+  clearTimeout(t._t); t._t=setTimeout(()=>{
+    t.className='toast medal';
+    _medalQueue.shift();
+    if(_medalQueue.length) setTimeout(flushMedalToast,300);
+  },2200);
+}
+function openMedals(){
+  const got=MEDALS.filter(m=>state.medals[m.id]).length;
+  const cards=MEDALS.map(m=>{
+    const on=state.medals[m.id];
+    return `<div class="medal-card ${on?'':'locked'}">
+      <span class="m-ico">${m.ico}</span>
+      <div><div class="m-name">${m.name}</div><div class="m-desc">${m.desc}</div></div>
+    </div>`;}).join('');
+  openPanel(`<h2>🏅 Logros (${got}/${MEDALS.length})</h2>
+    <p style="font-size:13px;opacity:.85;margin-bottom:4px">Desbloquea medallas aprendiendo y superando retos. ¡A por todas!</p>
+    <div class="medal-grid">${cards}</div>
+    <div class="panel-actions"><button class="btn ghost" onclick="closePanel()">Cerrar</button></div>`);
+}
+
+/* ----------------------------------------------------------------------
+   OBJETIVO: guía "¿qué hago ahora?" según el estado de la isla
+   ---------------------------------------------------------------------- */
+function nextObjective(){
+  if(state.bossDefeated[island().id])
+    return {ico:'🚢', text:'¡Isla liberada! Acércate al muelle y <b>viaja</b> a la siguiente.'};
+  const learned=learnedCount();
+  if(learned<3)
+    return {ico:'💬', text:`Habla con los aldeanos y aprende <b>${3-learned}</b> palabra(s) más.`};
+  if(!state.gear.sword)
+    return {ico:'🏪', text:'Ve a la <b>tienda</b> 🏪 y consigue una <b>espada</b>.'};
+  return {ico:'👹', text:'¡Listo para el <b>jefe</b>! Acércate a él y vence con lo aprendido.'};
+}
+function updateObjective(){
+  const o=nextObjective(); const p=islandProgress();
+  document.getElementById('obIco').textContent=o.ico;
+  document.getElementById('obText').innerHTML=o.text;
+  document.getElementById('obProg').textContent=`📖 ${p.done}/${p.total} de esta isla`;
 }
 
 /* ----------------------------------------------------------------------
@@ -552,10 +703,11 @@ function resolveLearn(btn,id,correct){
   const fb=document.getElementById('fb');
   if(right){
     state.learned[id]={mastery:1, rusty:false};
-    state.gems+=2; updateHUD(); maybeRust(); saveState();
+    state.gems+=2; recordAnswer(true); updateHUD(); maybeRust(); saveState();
     fb.className='feedback good'; fb.textContent=`¡Correcto! Aprendiste “${byId(id).en}”. +2 💎`;
     addAction(`<button class="btn" onclick="closePanel()">Seguir</button>`);
   }else{
+    recordAnswer(false);
     fb.className='feedback bad'; fb.textContent='Casi. Vuelve a leer la pista del aldeano e inténtalo.';
     addAction(`<button class="btn" onclick="learnChallenge('${id}')">Intentar de nuevo</button>`);
   }
@@ -595,11 +747,12 @@ function talkReviewer(o){
     if(right){
       state.learned[id].rusty=false;
       state.learned[id].mastery=Math.min(3,state.learned[id].mastery+1);
-      state.gems+=1; updateHUD(); saveState();
+      state.gems+=1; recordAnswer(true); updateHUD(); saveState();
       fb.className='feedback good'; fb.textContent='¡Refrescada! Tu dominio subió. +1 💎';
       addAction(`<button class="btn" onclick="talkReviewer(OBJECTS.find(o=>o.id==='${o.id}'))">Repasar otra</button>
                  <button class="btn ghost" onclick="closePanel()">Salir</button>`);
     }else{
+      recordAnswer(false);
       fb.className='feedback bad'; fb.textContent='No pasa nada, repásala otra vez.';
       addAction(`<button class="btn" onclick="talkReviewer(OBJECTS.find(o=>o.id==='${o.id}'))">Reintentar</button>`);
     }
@@ -640,10 +793,11 @@ function buyFlow(key){
       if(b.dataset.v===w.es)b.classList.add('correct'); else if(b===btn)b.classList.add('wrong');});
     const fb=document.getElementById('fb');
     if(right){
-      state.gems-=item.price; state.gear[key]=true; updateHUD(); saveState();
+      state.gems-=item.price; state.gear[key]=true; recordAnswer(true); updateHUD(); saveState();
       fb.className='feedback good'; fb.textContent=`¡Trato hecho! Equipaste el ${item.name}.`;
       addAction(`<button class="btn" onclick="openShop(OBJECTS.find(o=>o.id==='shop'))">Seguir comprando</button>`);
     }else{
+      recordAnswer(false);
       fb.className='feedback bad'; fb.textContent=`La respuesta era “${w.es}”. Inténtalo de nuevo, sin prisa.`;
       addAction(`<button class="btn" onclick="buyFlow('${key}')">Reintentar</button>`);
     }
@@ -701,10 +855,11 @@ function resolveCombat(btn,id,correct){
   const fb=document.getElementById('fb');
   if(right){
     combat.killed++; state.learned[id].mastery=Math.min(3,state.learned[id].mastery+1);
+    recordAnswer(true);
     fb.className='feedback good'; fb.textContent='¡Golpe certero! Enemigo derrotado.';
   }else{
     const dmg=damageTaken(); state.hp=Math.max(0,state.hp-dmg);
-    state.learned[id].mastery=Math.max(1,state.learned[id].mastery-1); updateHUD();
+    state.learned[id].mastery=Math.max(1,state.learned[id].mastery-1); recordAnswer(false); updateHUD();
     fb.className='feedback bad'; fb.textContent=`Fallaste — te golpean (-${dmg} ❤️). Era “${correct}”.`;
   }
   saveState();
@@ -716,7 +871,8 @@ function resolveCombat(btn,id,correct){
 }
 function combatWin(){
   const reward=6+state.islandIndex*3;
-  state.gems+=reward; state.cleared[clearedKey(combat.obj)]=true; updateHUD(); saveState();
+  state.gems+=reward; state.cleared[clearedKey(combat.obj)]=true;
+  state.stats.zonesCleared++; checkMedals(); updateHUD(); saveState();
   const el=document.querySelector('#obj-'+combat.obj.id); if(el) el.classList.add('cleared');
   openPanel(`<h2>🎉 ¡Zona despejada!</h2>
     <div class="speaker"><div class="face">${combat.face}</div>
@@ -769,11 +925,12 @@ function resolveAttack(btn,id,correct,o){
     boss.hp=Math.max(0,boss.hp-dmg);
     document.getElementById('bossHp').style.width=boss.hp/boss.max*100+'%';
     document.getElementById('bossFace').classList.add('boss-shake');
+    recordAnswer(true);
     fb.className='feedback good'; fb.textContent=`¡Golpe de ${dmg}! El jefe retrocede.`;
   }else{
     const dmg=damageTaken()+4;
     state.hp=Math.max(0,state.hp-dmg);
-    document.getElementById('selfHp').style.width=state.hp/state.maxHp*100+'%'; updateHUD();
+    document.getElementById('selfHp').style.width=state.hp/state.maxHp*100+'%'; recordAnswer(false); updateHUD();
     fb.className='feedback bad'; fb.textContent=`Era “${correct}”. El jefe te golpea (-${dmg} ❤️).`;
   }
   saveState();
@@ -787,7 +944,7 @@ function winBoss(o){
   state.bossDefeated[island().id]=true; state.gems+=10;
   const next=ISLANDS[state.islandIndex+1];
   if(next) state.unlocked[next.id]=true;
-  updateHUD(); saveState();
+  checkMedals(); updateHUD(); saveState();
   const bf=document.querySelector('#obj-boss .emoji'); if(bf&&o.face2) bf.textContent=o.face2;
   const bel=document.querySelector('#obj-boss'); if(bel) bel.classList.add('cleared');
   openPanel(`<h2>🎉 ¡${island().name} liberada!</h2>
@@ -835,6 +992,8 @@ function travelTo(idx){
 
 /* ---------- Banco de palabras ---------- */
 document.getElementById('bankBtn').addEventListener('click',openBank);
+document.getElementById('medalStat').addEventListener('click',openMedals);
+document.getElementById('helpBtn').addEventListener('click',showHelp);
 function openBank(){
   const ids=Object.keys(state.learned);
   const stars=m=>'⭐'.repeat(m)+'·'.repeat(3-m);
@@ -845,10 +1004,13 @@ function openBank(){
       <div class="wb-mast">Dominio: ${stars(s.mastery)}</div>
       ${s.rusty?'<div class="wb-rusty-tag">⚠ por repasar</div>':''}</div>`;}).join('')
     : '<div class="empty">Aún no aprendes palabras.<br>Habla con un aldeano (💬) para empezar.</div>';
+  const p=islandProgress();
   openPanel(`<h2>📖 Mis palabras (${ids.length})</h2>
     <p style="font-size:13px;opacity:.85;margin-bottom:6px">Tus palabras son tu moneda y tu fuerza. Más dominio = más daño.</p>
+    <div class="wb-sub">${island().name}: ${p.done}/${p.total} aprendidas</div>
     <div class="wb-grid">${cards}</div>
     <div class="panel-actions">
+      <button class="btn gold" onclick="openMedals()">🏅 Logros</button>
       <button class="btn ghost" onclick="openTravel()">🚢 Viajar</button>
       <button class="btn danger" onclick="confirmReset()">↺ Reiniciar</button>
       <button class="btn ghost" onclick="closePanel()">Cerrar</button></div>`);
@@ -865,6 +1027,20 @@ function confirmReset(){
 /* ---------- Teclado / pad ---------- */
 window.addEventListener('keydown',e=>{
   const k=e.key.toLowerCase();
+  // Atajos dentro de los retos: 1-4 elige opción, Enter avanza.
+  if(overlay.classList.contains('show')){
+    if(['1','2','3','4'].includes(k)){
+      const choices=panel.querySelectorAll('.choice:not(:disabled)');
+      const idx=+k-1; if(choices[idx]){ choices[idx].click(); e.preventDefault(); }
+      return;
+    }
+    if(k==='enter'){
+      const act=panel.querySelector('.panel-actions .btn:not(.ghost):not(.danger)')
+              || panel.querySelector('.panel-actions .btn');
+      if(act){ act.click(); e.preventDefault(); }
+      return;
+    }
+  }
   if(['arrowup','w'].includes(k)){move(0,-1);e.preventDefault();}
   else if(['arrowdown','s'].includes(k)){move(0,1);e.preventDefault();}
   else if(['arrowleft','a'].includes(k)){move(-1,0);e.preventDefault();}
@@ -878,7 +1054,12 @@ document.querySelectorAll('.dpad button').forEach(b=>b.addEventListener('click',
   move(d==='left'?-1:d==='right'?1:0, d==='up'?-1:d==='down'?1:0);
 }));
 
-/* ---------- Intro ---------- */
+/* ---------- Intro / Ayuda ---------- */
+const NPC_LEGEND=`<div class="bubble" style="margin-top:10px;font-size:13px">
+    <b>¿Quién es quién?</b><br>
+    💬 Maestro: te da pistas para aprender · 🔁 Repaso: refresca palabras
+    · 🏪 Tienda: compra equipo demostrando lo aprendido
+    · ⚔️ Enemigos: combate · 👹 Jefe: vencelo para abrir la siguiente isla.</div>`;
 function intro(){
   openPanel(`<h2 class="pixel" style="font-size:12px">APRENDER JUGANDO</h2>
     <div class="speaker"><div class="face">🏝️</div>
@@ -886,12 +1067,27 @@ function intro(){
     <br>1️⃣ Habla con los aldeanos: te dan <b>pistas</b>, no respuestas. Tú deduces la palabra.
     <br>2️⃣ Cada palabra aprendida es <b>moneda y fuerza</b>.
     <br>3️⃣ Despeja enemigos, compra equipo y vence al <b>jefe</b> para abrir la siguiente isla.
-    <br><br>Muévete con flechas / WASD o el pad. Acércate y pulsa <b>E</b> (o el botón dorado) para interactuar.</div></div>
+    <br><br>Muévete con flechas / WASD o el pad. Acércate y pulsa <b>E</b> (o el botón dorado) para interactuar.
+    <br>En los retos puedes pulsar <b>1–4</b> para responder y <b>Enter</b> para continuar.</div></div>
+    ${NPC_LEGEND}
     <div class="panel-actions"><button class="btn gold" onclick="closePanel()">¡Empezar!</button></div>`);
+}
+function showHelp(){
+  openPanel(`<h2>❓ Ayuda</h2>
+    <div class="speaker"><div class="face">🗺️</div>
+    <div class="bubble"><b>Objetivo:</b> lo que aprendes es tu moneda y tu arma. Aprende palabras,
+    equípate en la tienda y vence al jefe para abrir nuevas islas.<br><br>
+    <b>Controles:</b> mover con flechas / WASD o el pad · interactuar con <b>E</b> o el botón dorado
+    · menú de viaje con <b>M</b> · cerrar con <b>Esc</b>.<br>
+    En los retos: teclas <b>1–4</b> para elegir y <b>Enter</b> para avanzar.<br><br>
+    Gana <b>🏅 logros</b> por tus hitos: míralos en el HUD o en 📖 Mis palabras.</div></div>
+    ${NPC_LEGEND}
+    <div class="panel-actions"><button class="btn gold" onclick="closePanel()">Entendido</button></div>`);
 }
 
 /* ---------- Init ---------- */
 buildWorld(); updateHUD(); refreshActionBtn();
+checkMedals();   // retroactivo: otorga logros ya merecidos en partidas guardadas
 if(Object.keys(state.learned).length===0 && state.islandIndex===0) intro();
 window.addEventListener('resize',()=>{buildWorld(); refreshActionBtn();});
 </script>
