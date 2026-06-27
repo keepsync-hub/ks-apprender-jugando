@@ -11,7 +11,7 @@ aldeanos con los que debes hablar, y cada palabra que aprendes se convierte en t
 El enfoque inicial es **aprender inglés** con vocabulario acotado a propósito,
 para mantener el contenido seguro y enfocado.
 
-🎮 **Juega online:** [keepsync.ai/ks-apprender-jugando](https://keepsync.ai/ks-apprender-jugando/)
+🎮 **Juega online:** [apprender-jugando.keepsync.ai](https://apprender-jugando.keepsync.ai/)
 
 ---
 
@@ -189,33 +189,31 @@ python3 -m http.server 8000
 
 ---
 
-## 🌐 Despliegue (GitHub Pages + dominio keepsync.ai)
+## 🌐 Despliegue (GitHub Pages + subdominio de keepsync.ai)
 
 El sitio se publica automáticamente con GitHub Actions
 (`.github/workflows/pages.yml`) en cada `push` a `main`: sube el contenido del
 repo como artefacto y lo despliega en GitHub Pages.
 
-- **URL de producción:** https://keepsync.ai/ks-apprender-jugando/
+- **URL de producción:** https://apprender-jugando.keepsync.ai/
 - **URL por defecto de GitHub:** https://keepsync-hub.github.io/ks-apprender-jugando/
 
-La ruta `keepsync.ai/ks-apprender-jugando` es el comportamiento estándar de las
-**project pages** de GitHub: cuando la organización `keepsync-hub` publica su
-sitio raíz (repo `keepsync-hub.github.io`) bajo el dominio verificado
-`keepsync.ai`, **cada repo con Pages activo se sirve automáticamente bajo
-`keepsync.ai/<nombre-del-repo>/`**. Por eso este repositorio **no** incluye un
-archivo `CNAME`: hacerlo reclamaría el dominio apex completo para este proyecto
-y entraría en conflicto con el sitio principal.
+El dominio `keepsync.ai` lo gestiona **Hostinger** (no GitHub Pages), por lo que
+el juego se sirve bajo un **subdominio dedicado** apuntado a GitHub Pages. El
+archivo [`CNAME`](./CNAME) de la raíz declara ese dominio personalizado
+(`apprender-jugando.keepsync.ai`).
 
-Requisitos (a nivel de organización, fuera de este repo) para que la URL de
-producción funcione:
+Pasos para que la URL de producción funcione (configuración única):
 
-1. El dominio `keepsync.ai` debe estar **verificado** en la organización
-   (Settings → Pages → "Verified domains").
-2. El repo `keepsync-hub/keepsync-hub.github.io` debe tener Pages activo con el
-   **dominio personalizado** `keepsync.ai` y los registros DNS apex (`A`/`AAAA`
-   a las IPs de GitHub Pages, o `ALIAS`/`ANAME` a `keepsync-hub.github.io`).
-3. En este repo, Settings → Pages debe usar **GitHub Actions** como fuente y el
-   campo "Custom domain" debe quedar **vacío** (hereda el dominio de la org).
+1. **DNS en Hostinger** → en la zona DNS de `keepsync.ai`, crear un registro
+   **CNAME**: nombre/host `apprender-jugando`, valor/destino
+   `keepsync-hub.github.io`.
+2. **GitHub Pages** → en Settings → Pages de este repo, con fuente
+   **GitHub Actions**, fijar "Custom domain" en `apprender-jugando.keepsync.ai`
+   (el archivo `CNAME` ya lo declara) y, una vez propagado el DNS, activar
+   **Enforce HTTPS**.
+3. El dominio `keepsync.ai` ya está **verificado** en la organización, lo que
+   habilita usar sus subdominios en GitHub Pages.
 
 ---
 
